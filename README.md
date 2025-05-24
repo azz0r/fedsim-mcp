@@ -13,8 +13,23 @@ A Model Context Protocol (MCP) server that provides command-line access to Fed S
 
 ## Installation
 
+### Global Installation (Recommended)
+
 ```bash
-cd ~/Sites/fedsimulator-mcp
+npm install -g fedsimulator-mcp
+```
+
+### Local Installation
+
+```bash
+npm install fedsimulator-mcp
+```
+
+### From Source
+
+```bash
+git clone https://github.com/azz0r/fedsim-mcp.git
+cd fedsim-mcp
 npm install
 npm run build
 ```
@@ -29,8 +44,8 @@ Add to your MCP client configuration:
 {
   "mcpServers": {
     "fedsimulator": {
-      "command": "node",
-      "args": ["/Users/aaronlote/Sites/fedsimulator-mcp/dist/index.js"]
+      "command": "npx",
+      "args": ["fedsimulator-mcp"]
     }
   }
 }
@@ -39,6 +54,13 @@ Add to your MCP client configuration:
 ### Direct Usage
 
 ```bash
+# If installed globally
+fedsimulator-mcp
+
+# Or with npx
+npx fedsimulator-mcp
+
+# From source
 npm start
 ```
 
@@ -188,3 +210,31 @@ This MCP server makes Fed Simulator's database actions available to:
 - Any MCP-compatible client
 
 Perfect for automating booking workflows, generating reports, or scripting complex wrestling scenarios!
+
+## Contributing
+
+We welcome contributions! See [CONTRIBUTING.md](CONTRIBUTING.md) for guidelines.
+
+- Report bugs or suggest features via [GitHub Issues](https://github.com/azz0r/fedsim-mcp/issues)
+- Submit pull requests for improvements
+- Help improve documentation
+- Share usage examples
+
+## License
+
+MIT License - see [LICENSE](LICENSE) for details.
+
+## Support
+
+- 📖 [Documentation](https://github.com/azz0r/fedsim-mcp#readme)
+- 🐛 [Issue Tracker](https://github.com/azz0r/fedsim-mcp/issues)
+- 💬 [Discussions](https://github.com/azz0r/fedsim-mcp/discussions)
+
+## Related Projects
+
+- [Fed Simulator X](https://fedsimulator.com) - The main wrestling simulation game
+- [Model Context Protocol](https://modelcontextprotocol.io) - Learn more about MCP
+
+---
+
+Built with ❤️ for the wrestling simulation community

@@ -3,21 +3,36 @@
   "version": "1.0.0",
   "description": "MCP server for Fed Simulator X database actions",
   "main": "dist/index.js",
+  "bin": {
+    "fedsimulator-mcp": "dist/index.js"
+  },
   "type": "module",
   "scripts": {
     "build": "tsc",
     "dev": "tsc --watch",
     "start": "node dist/index.js",
-    "test": "vitest"
+    "test": "vitest",
+    "prepublishOnly": "npm run build"
   },
   "keywords": [
     "mcp",
     "fed-simulator",
     "wrestling",
-    "simulation"
+    "simulation",
+    "model-context-protocol",
+    "cli",
+    "database"
   ],
   "author": "Fed Simulator Team",
   "license": "MIT",
+  "repository": {
+    "type": "git",
+    "url": "git+https://github.com/azz0r/fedsim-mcp.git"
+  },
+  "bugs": {
+    "url": "https://github.com/azz0r/fedsim-mcp/issues"
+  },
+  "homepage": "https://github.com/azz0r/fedsim-mcp#readme",
   "dependencies": {
     "@modelcontextprotocol/sdk": "^1.0.0",
     "fake-indexeddb": "^6.0.0",

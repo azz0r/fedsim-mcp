@@ -108,6 +108,35 @@ npm start
 - `query_table` - Custom queries with filtering/pagination
 - `count_records` - Count records in any table
 
+### Demo Tools
+
+- `run_demo` - Complete tutorial with sample wrestlers, brands, and show simulation
+- `show_tutorial` - Display help guide and available commands
+
+## Quick Start
+
+### Try the Demo (Recommended)
+
+```bash
+# Install and run
+npx fedsimulator-mcp
+
+# In your MCP client, run:
+run_demo
+```
+
+This creates a complete wrestling promotion with:
+- 12 legendary wrestlers (Stone Cold, The Rock, Triple H, etc.)
+- 2 brands (RAW and SmackDown) 
+- Famous venues (Madison Square Garden, Staples Center)
+- A full show simulation from booking to results
+
+### Get Help
+
+```bash
+show_tutorial  # Complete guide to all available tools
+```
+
 ## Example Usage
 
 ### Create a New Wrestler

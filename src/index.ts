@@ -14,6 +14,7 @@ import { createWrestlerTools } from './tools/wrestler-tools.js';
 import { createBrandTools } from './tools/brand-tools.js';
 import { createProductionTools } from './tools/production-tools.js';
 import { createGeneralTools } from './tools/general-tools.js';
+import { createDemoTools } from './tools/demo-tools.js';
 
 const server = new Server(
   {
@@ -44,6 +45,7 @@ async function initializeServer() {
     const brandTools = createBrandTools(db);
     const productionTools = createProductionTools(db);
     const generalTools = createGeneralTools(db);
+    const demoTools = createDemoTools(db);
     
     // Combine all tools
     for (const [key, value] of wrestlerTools) {
@@ -56,6 +58,9 @@ async function initializeServer() {
       allTools.set(key, value);
     }
     for (const [key, value] of generalTools) {
+      allTools.set(key, value);
+    }
+    for (const [key, value] of demoTools) {
       allTools.set(key, value);
     }
     

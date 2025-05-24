@@ -9,326 +9,302 @@ export function createDemoTools(db: FedSimDatabase) {
   const runDemo = createActionWrapper('Run Demo Tutorial', async () => {
     logger.info('🎬 Starting Fed Simulator MCP Demo Tutorial', {});
     
-    // Step 1: Reset database
-    logger.info('📋 Step 1: Clearing existing data...', {});
-    await db.Wrestler.clear();
-    await db.Brand.clear();
-    await db.Company.clear();
-    await db.Venue.clear();
-    await db.Production.clear();
-    await db.Segment.clear();
-    await db.Appearance.clear();
+    // Import other tool functions to use them
+    const { createWrestlerTools } = await import('./wrestler-tools.js');
+    const { createBrandTools } = await import('./brand-tools.js');
+    const { createProductionTools } = await import('./production-tools.js');
+    const { createGeneralTools } = await import('./general-tools.js');
     
-    // Step 2: Load demo data
-    logger.info('📋 Step 2: Loading demo wrestling roster...', {});
+    const wrestlerTools = createWrestlerTools(db);
+    const brandTools = createBrandTools(db);
+    const productionTools = createProductionTools(db);
+    const generalTools = createGeneralTools(db);
     
-    // Create company
-    const companyId = await db.Company.add(demoCompanies[0]);
-    logger.success('Created company', { name: demoCompanies[0].name, id: companyId });
-    
-    // Create venues
-    const venueIds: number[] = [];
-    for (const venue of demoVenues) {
-      const venueId = await db.Venue.add(venue);
-      venueIds.push(venueId);
-      logger.success('Created venue', { name: venue.name, capacity: venue.capacity });
+    // Step 1: Reset database using MCP tool
+    logger.info('📋 Step 1: Using reset_database tool...', {});
+    const resetTool = generalTools.get('reset_database');
+    if (resetTool) {
+      await resetTool.handler({ tables: ['Wrestler', 'Brand', 'Company', 'Venue', 'Production', 'Segment', 'Appearance'] });
+      logger.success('Database reset complete', {});
     }
     
-    // Create brands
-    const brandIds: number[] = [];
-    for (const brand of demoBrands) {
-      const brandId = await db.Brand.add({ 
-        ...brand, 
-        companyId,
-        image: null,
-        images: [],
-        directorId: null,
-      });
-      brandIds.push(brandId);
-      logger.success('Created brand', { name: brand.name, balance: brand.balance });
-    }
-    
-    // Create wrestlers and assign to brands
+    // Step 2: Create wrestlers using create_wrestler tool
+    logger.info('📋 Step 2: Creating wrestlers using create_wrestler tool...', {});
+    const createWrestlerTool = wrestlerTools.get('create_wrestler');
     const wrestlerIds: number[] = [];
-    for (let i = 0; i < demoWrestlers.length; i++) {
-      const wrestler = demoWrestlers[i];
-      // Alternate between RAW and SmackDown
-      const brandId = brandIds[i % brandIds.length];
-      
-      const wrestlerId = await db.Wrestler.add({
-        ...wrestler,
-        image: null,
-        images: [],
-        color: '#fff',
-        backgroundColor: '#999',
-        region: '',
-        country: '',
-        dob: null,
-        musicUrl: '',
-        brandIds: [brandId],
-        wins: Math.floor(Math.random() * 20) + 5,
-        losses: Math.floor(Math.random() * 15) + 2,
-        draws: Math.floor(Math.random() * 3),
-        streak: Math.floor(Math.random() * 5),
-        followers: 100000 + Math.floor(Math.random() * 900000),
-        contractExpires: new Date(new Date().setDate(new Date().getDate() + 365)),
-        remainingAppearances: 52,
-        contractType: 'FULL',
-        status: 'SIGNED',
-        retired: false,
-        entranceVideoUrl: '',
-        pushed: false,
-        special: '',
-      });
-      wrestlerIds.push(wrestlerId);
-      
-      const brand = await db.Brand.get(brandId);
-      logger.success('Created wrestler', { 
-        name: wrestler.name, 
-        brand: brand?.name,
-        points: wrestler.points,
-        alignment: wrestler.alignment
-      });
-    }
     
-    // Step 3: Create a production
-    logger.info('📋 Step 3: Creating Monday Night RAW production...', {});
-    const productionId = await db.Production.add({
-      name: "Monday Night RAW - Demo Show",
-      desc: "A demo production to showcase Fed Simulator MCP capabilities",
-      image: null,
-      color: "#FF0000",
-      backgroundColor: "#000000",
-      brandIds: [brandIds[0]], // RAW
-      venueId: venueIds[0], // Madison Square Garden
-      segmentIds: [],
-      showId: null,
-      date: new Date(),
-      wrestlersCost: 0,
-      segmentsCost: 0,
-      merchIncome: 0,
-      attendanceIncome: 0,
-      attendance: 0,
-      viewers: 0,
-      step: 0,
-      complete: false,
-    });
-    
-    logger.success('Created production', { 
-      name: "Monday Night RAW - Demo Show",
-      venue: demoVenues[0].name,
-      id: productionId
-    });
-    
-    // Step 4: Randomize the production
-    logger.info('📋 Step 4: Randomizing show with Fed Simulator booking algorithms...', {});
-    
-    // Create 4 segments
-    const segmentIds: number[] = [];
-    const segmentTypes = ['OPENING', 'MID_CARD', 'MID_CARD', 'MAIN_EVENT'];
-    
-    for (let i = 0; i < 4; i++) {
-      const segmentId = await db.Segment.add({
-        name: `Segment ${i + 1}`,
-        desc: '',
-        championshipIds: [],
-        appearanceIds: [],
-        date: new Date(),
-        type: segmentTypes[i],
-        duration: 0,
-        rating: 0,
-        complete: false,
-      });
-      segmentIds.push(segmentId);
-    }
-    
-    // Update production with segments
-    await db.Production.update(productionId, { segmentIds });
-    
-    // Import randomization logic
-    const { generateAppearances, randomizeSegmentDuration, generateSegmentName } = await import('../actions/randomization-algorithms.js');
-    
-    // Get wrestlers for this brand
-    const brandWrestlers = await db.Wrestler.filter(w => w.brandIds.includes(brandIds[0])).toArray();
-    
-    // Randomize each segment
-    const usedWrestlerIds: number[] = [];
-    for (let i = 0; i < segmentIds.length; i++) {
-      const segmentId = segmentIds[i];
-      const segmentType = segmentTypes[i];
-      
-      // Generate appearances
-      const availableWrestlers = brandWrestlers.filter(w => 
-        !usedWrestlerIds.includes(w.id!) && w.points >= (segmentType === 'MAIN_EVENT' ? 85 : 70)
-      );
-      
-      const wrestlersPool = availableWrestlers.length >= 2 ? availableWrestlers : brandWrestlers;
-      const appearances = generateAppearances({
-        wrestlers: wrestlersPool,
-        exclude: usedWrestlerIds.slice(-2),
-        minPoints: segmentType === 'MAIN_EVENT' ? 85 : 70,
-      });
-      
-      if (appearances.length === 0) continue;
-      
-      // Create appearances in database
-      const appearanceIds: number[] = [];
-      for (const appearance of appearances) {
-        const appearanceId = await db.Appearance.add({
-          wrestlerId: appearance.wrestlerId,
-          groupId: appearance.groupId,
-          manager: false,
-          cost: appearance.cost,
-          winner: false,
-          loser: false,
-        });
-        appearanceIds.push(appearanceId);
-        usedWrestlerIds.push(appearance.wrestlerId);
-      }
-      
-      // Update segment
-      const duration = randomizeSegmentDuration(segmentType);
-      const segmentWrestlers = appearances.map(a => a.wrestler);
-      const name = generateSegmentName(segmentWrestlers);
-      
-      await db.Segment.update(segmentId, {
-        name,
-        duration,
-        appearanceIds,
-      });
-      
-      logger.success('Randomized segment', {
-        segment: name,
-        type: segmentType,
-        wrestlers: segmentWrestlers.map(w => w.name),
-        duration: `${duration} minutes`,
-      });
-    }
-    
-    // Step 5: Simulate the production
-    logger.info('📋 Step 5: Simulating the show with match results...', {});
-    
-    const { 
-      calculateSegmentRating, 
-      simulateMatch, 
-      calculateAttendance, 
-      calculateRevenue, 
-      calculateViewership 
-    } = await import('../actions/fed-simulator-algorithms.js');
-    
-    const segments = await db.Segment.filter(s => segmentIds.includes(s.id!)).toArray();
-    let totalRating = 0;
-    let wrestlersCost = 0;
-    
-    for (const segment of segments) {
-      const appearances = await db.Appearance
-        .filter(a => segment.appearanceIds.includes(a.id!))
-        .toArray();
-      
-      const appearancesWithWrestlers = await Promise.all(
-        appearances.map(async (appearance) => {
-          const wrestler = await db.Wrestler.get(appearance.wrestlerId);
-          return { ...appearance, wrestler };
-        })
-      );
-      
-      wrestlersCost += appearances.reduce((sum, a) => sum + a.cost, 0);
-      
-      const { score: rating } = calculateSegmentRating(appearancesWithWrestlers);
-      const simulatedAppearances = simulateMatch(appearancesWithWrestlers);
-      
-      // Update appearances with results
-      for (const appearance of simulatedAppearances) {
-        await db.Appearance.update(appearance.id!, {
-          winner: appearance.winner,
-          loser: appearance.loser,
+    for (const wrestler of demoWrestlers.slice(0, 8)) { // First 8 for demo
+      if (createWrestlerTool) {
+        const result = await createWrestlerTool.handler({
+          name: wrestler.name,
+          desc: wrestler.desc,
+          alignment: wrestler.alignment,
+          gender: wrestler.gender,
+          height: wrestler.height,
+          weight: wrestler.weight,
+          billedFrom: wrestler.billedFrom,
+          finisher: wrestler.finisher,
+          points: wrestler.points,
+          charisma: wrestler.charisma,
+          morale: wrestler.morale,
+          stamina: wrestler.stamina,
+          popularity: wrestler.popularity,
         });
         
-        // Update wrestler records
-        if (appearance.winner || appearance.loser) {
-          const wrestler = appearance.wrestler!;
-          await db.Wrestler.update(wrestler.id!, {
-            wins: wrestler.wins + (appearance.winner ? 1 : 0),
-            losses: wrestler.losses + (appearance.loser ? 1 : 0),
-            morale: Math.min(100, wrestler.morale + (appearance.winner ? 3 : -1)),
-            popularity: Math.min(100, wrestler.popularity + (appearance.winner ? 2 : -1)),
+        if (result && typeof result === 'object' && 'id' in result) {
+          wrestlerIds.push(result.id);
+          logger.success('✅ create_wrestler called', {
+            name: wrestler.name,
+            points: wrestler.points,
+            alignment: wrestler.alignment
           });
         }
       }
-      
-      await db.Segment.update(segment.id!, {
-        complete: true,
-        rating: Math.round(rating),
-      });
-      
-      totalRating += rating;
-      
-      const winner = simulatedAppearances.find(a => a.winner);
-      logger.success('Simulated segment', {
-        segment: segment.name,
-        rating: Math.round(rating),
-        winner: winner?.wrestler?.name || 'No contest',
-      });
     }
     
-    // Calculate final results
-    const averageRating = Math.round(totalRating / segments.length);
-    const allWrestlers = await db.Wrestler.toArray();
-    const attendance = calculateAttendance(allWrestlers, 15000); // MSG base
-    const { attendanceIncome, merchIncome, totalRevenue } = calculateRevenue(attendance);
-    const viewers = calculateViewership(attendance);
+    // Step 3: Create brands using create_brand tool
+    logger.info('📋 Step 3: Creating brands using create_brand tool...', {});
+    const createBrandTool = brandTools.get('create_brand');
+    const brandIds: number[] = [];
     
-    await db.Production.update(productionId, {
-      complete: true,
-      wrestlersCost,
-      attendanceIncome,
-      merchIncome,
-      attendance,
-      viewers,
-      step: 100,
+    for (const brand of demoBrands) {
+      if (createBrandTool) {
+        const result = await createBrandTool.handler({
+          name: brand.name,
+          desc: brand.desc,
+          color: brand.color,
+          backgroundColor: brand.backgroundColor,
+          balance: brand.balance,
+        });
+        
+        if (result && typeof result === 'object' && 'id' in result) {
+          brandIds.push(result.id);
+          logger.success('✅ create_brand called', {
+            name: brand.name,
+            balance: brand.balance
+          });
+        }
+      }
+    }
+    
+    // Step 4: Assign wrestlers to brands using assign_wrestler_to_brand tool
+    logger.info('📋 Step 4: Assigning wrestlers to brands using assign_wrestler_to_brand tool...', {});
+    const assignWrestlerTool = brandTools.get('assign_wrestler_to_brand');
+    
+    for (let i = 0; i < wrestlerIds.length; i++) {
+      const wrestlerId = wrestlerIds[i];
+      const brandId = brandIds[i % brandIds.length]; // Alternate between brands
+      
+      if (assignWrestlerTool) {
+        await assignWrestlerTool.handler({
+          wrestlerId,
+          brandId,
+        });
+        
+        const brandName = brandId === brandIds[0] ? 'RAW' : 'SmackDown';
+        logger.success('✅ assign_wrestler_to_brand called', {
+          wrestler: demoWrestlers[i].name,
+          brand: brandName
+        });
+      }
+    }
+    
+    // Step 5: Create a production using create_production tool
+    logger.info('📋 Step 5: Creating RAW production using create_production tool...', {});
+    const createProductionTool = productionTools.get('create_production');
+    let productionId: number = 0;
+    
+    if (createProductionTool) {
+      const result = await createProductionTool.handler({
+        name: "RAW - Demo Show",
+        desc: "A demo production showcasing MCP tool usage",
+        date: new Date().toISOString(),
+        brandIds: brandIds.slice(0, 1), // Just RAW
+      });
+      
+      if (result && typeof result === 'object' && 'id' in result) {
+        productionId = result.id;
+        logger.success('✅ create_production called', {
+          name: "RAW - Demo Show",
+          id: productionId
+        });
+      }
+    }
+    
+    // Step 6: Randomize the production using randomize_production tool  
+    logger.info('📋 Step 6: Booking the show using randomize_production tool...', {});
+    const randomizeProductionTool = productionTools.get('randomize_production');
+    
+    if (randomizeProductionTool && productionId) {
+      const result = await randomizeProductionTool.handler({
+        id: productionId,
+        createSegments: true,
+        maxSegments: 4,
+        minPoints: 70,
+      });
+      
+      if (result && typeof result === 'object' && 'randomizedSegments' in result) {
+        logger.success('✅ randomize_production called', {
+          segmentsCreated: result.randomizedSegments.length,
+          production: "RAW - Demo Show"
+        });
+        
+        // Log the matches created
+        for (const segment of result.randomizedSegments) {
+          logger.info('📺 Match booked', {
+            match: segment.name,
+            type: segment.type,
+            duration: `${segment.duration} minutes`,
+            wrestlers: segment.wrestlers.join(' vs ')
+          });
+        }
+      }
+    }
+    
+    // Step 7: Simulate the production using simulate_production tool
+    logger.info('📋 Step 7: Simulating the show using simulate_production tool...', {});
+    const simulateProductionTool = productionTools.get('simulate_production');
+    
+    if (simulateProductionTool && productionId) {
+      const result = await simulateProductionTool.handler({
+        id: productionId
+      });
+      
+      if (result && typeof result === 'object' && 'results' in result) {
+        logger.success('✅ simulate_production called', {
+          segments: result.results.segments,
+          averageRating: result.results.averageRating,
+          attendance: result.results.attendance.toLocaleString(),
+          revenue: `$${result.results.revenue.toLocaleString()}`,
+          profit: `$${result.results.profit.toLocaleString()}`
+        });
+        
+        // Log individual match results
+        if (result.results.segmentResults) {
+          for (const segmentResult of result.results.segmentResults) {
+            logger.info('🏆 Match result', {
+              match: segmentResult.segment,
+              rating: segmentResult.rating,
+              winner: segmentResult.winner
+            });
+          }
+        }
+      }
+    }
+    
+    // Step 8: Get production report using get_production_report tool
+    logger.info('📋 Step 8: Generating detailed report using get_production_report tool...', {});
+    const getReportTool = productionTools.get('get_production_report');
+    
+    if (getReportTool && productionId) {
+      const result = await getReportTool.handler({
+        id: productionId
+      });
+      
+      if (result && typeof result === 'object') {
+        logger.success('✅ get_production_report called', {
+          showName: result.production?.name,
+          totalSegments: result.segments?.length || 0,
+          totalProfit: `$${result.financial?.profit?.toLocaleString() || 0}`,
+          attendance: result.audience?.attendance?.toLocaleString() || 0
+        });
+      }
+    }
+    
+    // Step 9: Show roster using search_wrestlers tool
+    logger.info('📋 Step 9: Viewing roster using search_wrestlers tool...', {});
+    const searchWrestlersTool = wrestlerTools.get('search_wrestlers');
+    
+    if (searchWrestlersTool) {
+      const result = await searchWrestlersTool.handler({
+        active: true,
+        limit: 10
+      });
+      
+      if (Array.isArray(result)) {
+        logger.success('✅ search_wrestlers called', {
+          wrestlersFound: result.length,
+          topWrestlers: result.slice(0, 3).map(w => `${w.name} (${w.points} pts)`)
+        });
+      }
+    }
+    
+    // Step 10: Check brand finances using get_brand_financials tool
+    logger.info('📋 Step 10: Checking brand finances using get_brand_financials tool...', {});
+    const getBrandFinancialsTool = brandTools.get('get_brand_financials');
+    
+    if (getBrandFinancialsTool && brandIds[0]) {
+      const result = await getBrandFinancialsTool.handler({
+        id: brandIds[0]
+      });
+      
+      if (result && typeof result === 'object' && 'financials' in result) {
+        logger.success('✅ get_brand_financials called', {
+          brand: result.brand?.name,
+          currentBalance: `$${result.financials.currentBalance?.toLocaleString()}`,
+          recentShows: result.financials.recentShows,
+          totalRevenue: `$${result.financials.totalRevenue?.toLocaleString()}`
+        });
+      }
+    }
+    
+    // Demo complete - provide tutorial summary
+    logger.info('🎓 MCP Tool Demo Complete!', {});
+    logger.info('📝 This demo showcased 10 different MCP tools:', {
+      '1. reset_database': 'Cleared existing data',
+      '2. create_wrestler': 'Created 8 legendary wrestlers',
+      '3. create_brand': 'Created RAW and SmackDown brands', 
+      '4. assign_wrestler_to_brand': 'Assigned wrestlers to brands',
+      '5. create_production': 'Created RAW show',
+      '6. randomize_production': 'Auto-booked 4 segments',
+      '7. simulate_production': 'Ran full show simulation',
+      '8. get_production_report': 'Generated detailed analysis',
+      '9. search_wrestlers': 'Searched active roster',
+      '10. get_brand_financials': 'Checked brand finances'
     });
     
-    logger.success('Show simulation complete!', {
-      averageRating,
-      attendance: attendance.toLocaleString(),
-      revenue: `$${totalRevenue.toLocaleString()}`,
-      profit: `$${(totalRevenue - wrestlersCost).toLocaleString()}`,
-      viewers: viewers.toLocaleString(),
+    logger.info('💡 Key Learning Points:', {
+      'MCP Tools': 'Each operation uses proper MCP tool calls - no direct DB access',
+      'Realistic Data': 'Uses authentic wrestling stats and Fed Simulator algorithms',
+      'Step-by-Step': 'Shows complete workflow from setup to analysis',
+      'Error Handling': 'Tools validate inputs and provide clear error messages',
+      'Logging': 'Every operation provides detailed feedback and results'
     });
     
-    // Step 6: Tutorial summary
-    logger.info('🎓 Demo Tutorial Complete!', {});
-    logger.info('📚 What you can do next:', {
-      'List all tools': 'Call any MCP client to see available tools',
-      'View wrestlers': 'Use search_wrestlers or list_wrestlers',
-      'Check finances': 'Use get_brand_financials to see profit/loss',
-      'Create more shows': 'Use create_production, randomize_production, simulate_production',
-      'Manage roster': 'Use boost_wrestler, penalize_wrestler, update_wrestler',
-      'Reset and try again': 'Use reset_database then run_demo',
+    logger.info('🚀 Try These Commands Next:', {
+      'Boost a wrestler': 'boost_wrestler {"id": 1}',
+      'Create another show': 'create_production {"name": "SmackDown Live"}',
+      'Search by alignment': 'search_wrestlers {"alignment": "HEEL"}',
+      'Check database stats': 'get_database_stats',
+      'View all tools': 'show_tutorial'
     });
     
     return {
-      message: 'Fed Simulator MCP Demo completed successfully!',
+      message: 'Fed Simulator MCP Tool Demo completed successfully!',
+      toolsUsed: 10,
       summary: {
-        wrestlersCreated: demoWrestlers.length,
-        brandsCreated: demoBrands.length,
-        venuesCreated: demoVenues.length,
-        productionId,
-        segmentsSimulated: segments.length,
-        finalResults: {
-          averageRating,
-          attendance,
-          revenue: totalRevenue,
-          profit: totalRevenue - wrestlersCost,
-          viewers,
-        },
+        wrestlersCreated: 8,
+        brandsCreated: 2,
+        productionId: productionId || 0,
+        mcpToolsCalled: [
+          'reset_database',
+          'create_wrestler',
+          'create_brand', 
+          'assign_wrestler_to_brand',
+          'create_production',
+          'randomize_production',
+          'simulate_production',
+          'get_production_report',
+          'search_wrestlers',
+          'get_brand_financials'
+        ]
       },
       nextSteps: [
-        'Try: search_wrestlers {"alignment": "FACE"}',
-        'Try: get_brand_roster {"id": 1}', 
-        'Try: create_random_segment {"productionId": ' + productionId + '}',
-        'Try: get_production_report {"id": ' + productionId + '}',
-        'Try: boost_wrestler {"id": 1}',
+        'boost_wrestler {"id": 1}',
+        'search_wrestlers {"alignment": "FACE"}',
+        'get_database_stats',
+        'create_random_segment {"productionId": ' + (productionId || 1) + '}',
+        'show_tutorial'
       ],
     };
   });

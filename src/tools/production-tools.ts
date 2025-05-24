@@ -1,6 +1,13 @@
 import { FedSimDatabase, Production } from '../database/db.js';
 import { DatabaseActions, createActionWrapper } from '../actions/action-wrapper.js';
 import { logger } from '../utils/logger.js';
+import { 
+  calculateSegmentRating, 
+  simulateMatch, 
+  calculateAttendance, 
+  calculateRevenue, 
+  calculateViewership 
+} from '../actions/fed-simulator-algorithms.js';
 
 export function createProductionTools(db: FedSimDatabase) {
   const dbActions = new DatabaseActions(db);
@@ -56,10 +63,11 @@ export function createProductionTools(db: FedSimDatabase) {
       .filter(segment => production.segmentIds.includes(segment.id!))
       .toArray();
 
-    // Simulate each segment
+    // Simulate each segment using Fed Simulator's algorithms
     let totalRating = 0;
     let totalDuration = 0;
     let wrestlersCost = 0;
+    const segmentResults: any[] = [];
 
     for (const segment of segments) {
       if (!segment.complete) {
@@ -68,38 +76,93 @@ export function createProductionTools(db: FedSimDatabase) {
           .filter(appearance => segment.appearanceIds.includes(appearance.id!))
           .toArray();
 
+        // Get wrestler data for each appearance
+        const appearancesWithWrestlers = await Promise.all(
+          appearances.map(async (appearance) => {
+            const wrestler = await db.Wrestler.get(appearance.wrestlerId);
+            return { ...appearance, wrestler };
+          })
+        );
+
         // Calculate costs
         const segmentCost = appearances.reduce((sum, appearance) => sum + appearance.cost, 0);
         wrestlersCost += segmentCost;
 
-        // Simulate rating (simplified)
-        const segmentRating = Math.floor(Math.random() * 40) + 60; // 60-100
+        // Use Fed Simulator's actual rating calculation
+        const { score: segmentRating } = calculateSegmentRating(appearancesWithWrestlers);
+        
+        // Simulate match results if it's a competitive segment
+        const simulatedAppearances = simulateMatch(appearancesWithWrestlers);
+        
+        // Update appearances with match results
+        for (const appearance of simulatedAppearances) {
+          await db.Appearance.update(appearance.id!, {
+            winner: appearance.winner,
+            loser: appearance.loser,
+          });
+          
+          // Update wrestler records
+          if (appearance.winner || appearance.loser) {
+            const wrestler = appearance.wrestler!;
+            const newWins = wrestler.wins + (appearance.winner ? 1 : 0);
+            const newLosses = wrestler.losses + (appearance.loser ? 1 : 0);
+            const newStreak = appearance.winner ? wrestler.streak + 1 : 0;
+            
+            await db.Wrestler.update(wrestler.id!, {
+              wins: newWins,
+              losses: newLosses,
+              streak: newStreak,
+              morale: Math.min(100, wrestler.morale + (appearance.winner ? 5 : -2)),
+              popularity: Math.min(100, wrestler.popularity + (appearance.winner ? 2 : -1)),
+            });
+          }
+        }
+
         totalRating += segmentRating;
         totalDuration += segment.duration || 15; // Default 15 minutes
 
-        // Update segment as complete
+        // Update segment as complete with real rating
         await db.Segment.update(segment.id!, { 
           complete: true, 
-          rating: segmentRating 
+          rating: Math.round(segmentRating)
+        });
+
+        segmentResults.push({
+          segment: segment.name,
+          rating: Math.round(segmentRating),
+          duration: segment.duration || 15,
+          cost: segmentCost,
+          competitors: appearancesWithWrestlers.map(a => a.wrestler?.name || 'Unknown'),
+          winner: simulatedAppearances.find(a => a.winner)?.wrestler?.name || 'No winner',
         });
 
         logger.info('Simulated segment', {
           segment: segment.name,
-          rating: segmentRating,
+          rating: Math.round(segmentRating),
           duration: segment.duration || 15,
           cost: segmentCost,
+          winner: simulatedAppearances.find(a => a.winner)?.wrestler?.name || 'No winner',
         });
       }
     }
 
-    // Calculate show results
+    // Get all wrestlers involved in the production for attendance calculation
+    const allWrestlerIds = await db.Appearance
+      .filter(appearance => 
+        segments.some(segment => segment.appearanceIds.includes(appearance.id!))
+      )
+      .toArray()
+      .then(appearances => [...new Set(appearances.map(a => a.wrestlerId))]);
+    
+    const wrestlers = await Promise.all(
+      allWrestlerIds.map(id => db.Wrestler.get(id))
+    ).then(wrestlers => wrestlers.filter(Boolean));
+
+    // Calculate show results using Fed Simulator's algorithms
     const averageRating = segments.length > 0 ? Math.round(totalRating / segments.length) : 0;
-    const baseAttendance = 5000;
-    const attendance = Math.floor(baseAttendance * (1 + (averageRating - 70) / 100));
-    const ticketPrice = 50;
-    const attendanceIncome = attendance * ticketPrice;
-    const merchIncome = Math.floor(attendance * 15); // $15 avg merch per person
-    const viewers = Math.floor(attendance * 3.5); // TV multiplier
+    const attendance = calculateAttendance(wrestlers as any[], 5000);
+    const { attendanceIncome, merchIncome, totalRevenue } = calculateRevenue(attendance);
+    const viewers = calculateViewership(attendance);
 
     // Update production
     await db.Production.update(productionId, {
@@ -120,9 +183,10 @@ export function createProductionTools(db: FedSimDatabase) {
       segments: segments.length,
       averageRating,
       attendance,
-      totalRevenue: attendanceIncome + merchIncome,
+      totalRevenue,
       totalCosts: wrestlersCost,
-      profit: (attendanceIncome + merchIncome) - wrestlersCost,
+      profit: totalRevenue - wrestlersCost,
+      segmentResults,
     });
 
     return {
@@ -132,9 +196,10 @@ export function createProductionTools(db: FedSimDatabase) {
         averageRating,
         attendance,
         viewers,
-        revenue: attendanceIncome + merchIncome,
+        revenue: totalRevenue,
         costs: wrestlersCost,
-        profit: (attendanceIncome + merchIncome) - wrestlersCost,
+        profit: totalRevenue - wrestlersCost,
+        segmentResults,
       },
     };
   });

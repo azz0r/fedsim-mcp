@@ -123,6 +123,103 @@ server.setRequestHandler(CallToolRequestSchema, async (request) => {
   }
 });
 
+// --- DEMO MODE LOGIC ---
+async function runDemoMode() {
+  console.log(chalk.magenta('\n🎬 Running Fed Simulator Demo Mode...'));
+  db = await initializeDatabase();
+
+  // 1. Create WWE federation (Company)
+  const companyId = await db.Company.add({ name: 'WWE', desc: 'World Wrestling Entertainment', image: null });
+  console.log(chalk.green('✅ Created company: WWE'));
+
+  // 2. Create 'Raw' brand
+  const brandId = await db.Brand.add({ name: 'Raw', desc: 'Monday Night Raw', color: '#c00', backgroundColor: '#fff', companyId });
+  console.log(chalk.green('✅ Created brand: Raw'));
+
+  // 3. Create a few demo wrestlers
+  const wrestlerIds = [];
+  for (const name of ['John Cena', 'Roman Reigns', 'Becky Lynch', 'Seth Rollins']) {
+    const id = await db.Wrestler.add({
+      name,
+      desc: '',
+      image: null,
+      images: [],
+      color: '#fff',
+      backgroundColor: '#999',
+      brandIds: [brandId],
+      entranceVideoUrl: '',
+      pushed: false,
+      remainingAppearances: 52,
+      contractType: 'FULL',
+      contractExpires: new Date(new Date().setDate(new Date().getDate() + 365)),
+      status: 'SIGNED',
+      billedFrom: '',
+      region: '',
+      country: '',
+      dob: null,
+      height: 180,
+      weight: 170,
+      alignment: 'NEUTRAL',
+      gender: 'MALE',
+      role: 'DEFAULT',
+      followers: 1000,
+      losses: 0,
+      wins: 0,
+      streak: 0,
+      draws: 0,
+      points: 50,
+      morale: 50,
+      stamina: 50,
+      popularity: 0,
+      charisma: 50,
+      damage: 0,
+      active: true,
+      retired: false,
+      cost: 100,
+      special: '',
+      finisher: '',
+      musicUrl: '',
+    });
+    wrestlerIds.push(id);
+    console.log(chalk.green(`✅ Created wrestler: ${name}`));
+  }
+
+  // 4. Create a show (Production)
+  const showId = await db.Production.add({
+    name: 'Monday Night Raw',
+    desc: 'Weekly flagship show',
+    date: new Date(),
+    brandIds: [brandId],
+    venueId: null,
+    segmentIds: [],
+    complete: false,
+  });
+  console.log(chalk.green('✅ Created show: Monday Night Raw'));
+
+  // 5. Simulate the show (mark as complete, random results)
+  await db.Production.update(showId, { complete: true });
+  // Reward winners (randomly pick two)
+  const winners = wrestlerIds.sort(() => 0.5 - Math.random()).slice(0, 2);
+  for (const id of winners) {
+    const wrestler = await db.Wrestler.get(id);
+    await db.Wrestler.update(id, { wins: (wrestler?.wins || 0) + 1, popularity: (wrestler?.popularity || 0) + 10 });
+    console.log(chalk.yellow(`🏆 Rewarded winner: ${wrestler?.name}`));
+  }
+
+  // 6. Move to next month (simulate time passing)
+  // (For demo, just print message)
+  console.log(chalk.blue('\n⏩ Moving to next month...'));
+
+  // 7. Reset (clear DB)
+  await db.delete();
+  db = null;
+  console.log(chalk.red('\n🔄 Demo complete. Database reset.'));
+
+  // 8. Print summary
+  console.log(chalk.magenta('\n🎉 Demo finished! WWE, Raw, 4 wrestlers, 1 show, 2 winners.'));
+}
+// --- END DEMO MODE LOGIC ---
+
 // Start the server
 async function main() {
   await initializeServer();
@@ -134,10 +231,17 @@ async function main() {
 }
 
 if (import.meta.url === `file://${process.argv[1]}`) {
-  main().catch((error: Error) => {
-    console.error(chalk.red('Fatal error:'), error);
-    process.exit(1);
-  });
+  if (process.argv[2] === 'demo') {
+    runDemoMode().catch((error: Error) => {
+      console.error(chalk.red('Demo mode error:'), error);
+      process.exit(1);
+    });
+  } else {
+    main().catch((error: Error) => {
+      console.error(chalk.red('Fatal error:'), error);
+      process.exit(1);
+    });
+  }
 }
 
 export default server;

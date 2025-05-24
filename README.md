@@ -125,11 +125,11 @@ npx fedsimulator-mcp
 run_demo
 ```
 
-This creates a complete wrestling promotion with:
-- 12 legendary wrestlers (Stone Cold, The Rock, Triple H, etc.)
-- 2 brands (RAW and SmackDown) 
-- Famous venues (Madison Square Garden, Staples Center)
-- A full show simulation from booking to results
+This runs an interactive tutorial that demonstrates 10 different MCP tools:
+- Creates 8 legendary wrestlers (Stone Cold, The Rock, Triple H, etc.)
+- Sets up 2 brands (RAW and SmackDown) 
+- Books and simulates a complete wrestling show
+
 
 ### Get Help
 

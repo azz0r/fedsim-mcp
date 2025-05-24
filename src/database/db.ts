@@ -1,9 +1,11 @@
-import Dexie, { Table } from 'dexie';
-import 'fake-indexeddb/auto';
-import { version, name, stores } from './schema.js';
+import PouchDB from 'pouchdb';
+import PouchDBFind from 'pouchdb-find';
+PouchDB.plugin(PouchDBFind);
 
 export interface Wrestler {
+  _id?: string;
   id?: number;
+  type: 'Wrestler';
   name: string;
   desc: string;
   image: string | null;
@@ -46,7 +48,9 @@ export interface Wrestler {
 }
 
 export interface Brand {
+  _id?: string;
   id?: number;
+  type: 'Brand';
   name: string;
   desc: string;
   image: string | null;
@@ -58,8 +62,19 @@ export interface Brand {
   companyId: number | null;
 }
 
-export interface Production {
+export interface Company {
+  _id?: string;
   id?: number;
+  type: 'Company';
+  name: string;
+  desc: string;
+  image: string | null;
+}
+
+export interface Production {
+  _id?: string;
+  id?: number;
+  type: 'Production';
   name: string;
   desc: string;
   image: string | null;
@@ -80,32 +95,211 @@ export interface Production {
   complete: boolean;
 }
 
-export class FedSimDatabase extends Dexie {
-  Wrestler!: Table<Wrestler>;
-  Brand!: Table<Brand>;
-  Company!: Table<any>;
-  Championship!: Table<any>;
-  Show!: Table<any>;
-  Venue!: Table<any>;
-  Production!: Table<Production>;
-  Segment!: Table<any>;
-  Appearance!: Table<any>;
-  Faction!: Table<any>;
-  Draft!: Table<any>;
-  Game!: Table<any>;
-  StorylineTemplate!: Table<any>;
-  ActiveStoryline!: Table<any>;
-  StorylineSegment!: Table<any>;
-  StorylineGoal!: Table<any>;
-  Reign!: Table<any>;
-  Rumble!: Table<any>;
-  Bet!: Table<any>;
-  Favourite!: Table<any>;
-  Notification!: Table<any>;
+class PouchDBTable<T extends { _id?: string; id?: number; type: string }> {
+  constructor(private db: PouchDB.Database, private docType: string) {}
+
+  async add(item: Omit<T, '_id' | 'id' | 'type'>): Promise<number> {
+    const id = Date.now() + Math.floor(Math.random() * 1000);
+    const doc = {
+      ...item,
+      _id: `${this.docType.toLowerCase()}:${id}`,
+      id,
+      type: this.docType,
+    } as T;
+    
+    await this.db.put(doc);
+    return id;
+  }
+
+  async get(id: number): Promise<T | undefined> {
+    try {
+      const doc = await this.db.get(`${this.docType.toLowerCase()}:${id}`);
+      return doc as unknown as T;
+    } catch (e) {
+      if ((e as any).status === 404) return undefined;
+      throw e;
+    }
+  }
+
+  async update(id: number, updates: Partial<T>): Promise<void> {
+    const doc = await this.db.get(`${this.docType.toLowerCase()}:${id}`);
+    const updated = { ...doc, ...updates };
+    await this.db.put(updated);
+  }
+
+  async delete(id: number): Promise<void> {
+    const doc = await this.db.get(`${this.docType.toLowerCase()}:${id}`);
+    await this.db.remove(doc);
+  }
+
+  async toArray(): Promise<T[]> {
+    const result = await this.db.find({ selector: { type: this.docType } });
+    return result.docs as unknown as T[];
+  }
+
+  where(field: keyof T) {
+    return {
+      equals: async (value: any): Promise<T[]> => {
+        const result = await this.db.find({ 
+          selector: { 
+            type: this.docType,
+            [field as string]: value 
+          } 
+        });
+        return result.docs as unknown as T[];
+      }
+    };
+  }
+
+  filter(predicate: (item: T) => boolean) {
+    return {
+      toArray: async (): Promise<T[]> => {
+        const all = await this.toArray();
+        return all.filter(predicate);
+      },
+      reverse: () => ({
+        toArray: async (): Promise<T[]> => {
+          const all = await this.toArray();
+          return all.filter(predicate).reverse();
+        }
+      })
+    };
+  }
+
+  orderBy(field: keyof T) {
+    return {
+      toArray: async (): Promise<T[]> => {
+        const all = await this.toArray();
+        return all.sort((a, b) => {
+          const aVal = a[field];
+          const bVal = b[field];
+          if (aVal < bVal) return -1;
+          if (aVal > bVal) return 1;
+          return 0;
+        });
+      },
+      limit: (count: number) => ({
+        toArray: async (): Promise<T[]> => {
+          const all = await this.toArray();
+          return all.sort((a, b) => {
+            const aVal = a[field];
+            const bVal = b[field];
+            if (aVal < bVal) return -1;
+            if (aVal > bVal) return 1;
+            return 0;
+          }).slice(0, count);
+        }
+      }),
+      reverse: () => ({
+        toArray: async (): Promise<T[]> => {
+          const all = await this.toArray();
+          return all.sort((a, b) => {
+            const aVal = a[field];
+            const bVal = b[field];
+            if (aVal < bVal) return 1;
+            if (aVal > bVal) return -1;
+            return 0;
+          });
+        },
+        limit: (count: number) => ({
+          toArray: async (): Promise<T[]> => {
+            const all = await this.toArray();
+            return all.sort((a, b) => {
+              const aVal = a[field];
+              const bVal = b[field];
+              if (aVal < bVal) return 1;
+              if (aVal > bVal) return -1;
+              return 0;
+            }).slice(0, count);
+          }
+        })
+      })
+    };
+  }
+
+  toCollection() {
+    return {
+      toArray: async (): Promise<T[]> => {
+        return await this.toArray();
+      },
+      limit: (count: number) => ({
+        toArray: async (): Promise<T[]> => {
+          const all = await this.toArray();
+          return all.slice(0, count);
+        }
+      }),
+      filter: (predicate: (item: T) => boolean) => ({
+        toArray: async (): Promise<T[]> => {
+          const all = await this.toArray();
+          return all.filter(predicate);
+        },
+        limit: (count: number) => ({
+          toArray: async (): Promise<T[]> => {
+            const all = await this.toArray();
+            return all.filter(predicate).slice(0, count);
+          }
+        })
+      })
+    };
+  }
+}
+
+export class FedSimDatabase {
+  private db: PouchDB.Database;
+  public Wrestler: PouchDBTable<Wrestler>;
+  public Brand: PouchDBTable<Brand>;
+  public Company: PouchDBTable<Company>;
+  public Production: PouchDBTable<Production>;
+  public Championship: PouchDBTable<any>;
+  public Show: PouchDBTable<any>;
+  public Venue: PouchDBTable<any>;
+  public Segment: PouchDBTable<any>;
+  public Appearance: PouchDBTable<any>;
+  public Faction: PouchDBTable<any>;
+  public Draft: PouchDBTable<any>;
+  public Game: PouchDBTable<any>;
+  public StorylineTemplate: PouchDBTable<any>;
+  public ActiveStoryline: PouchDBTable<any>;
+  public StorylineSegment: PouchDBTable<any>;
+  public StorylineGoal: PouchDBTable<any>;
+  public Reign: PouchDBTable<any>;
+  public Rumble: PouchDBTable<any>;
+  public Bet: PouchDBTable<any>;
+  public Favourite: PouchDBTable<any>;
+  public Notification: PouchDBTable<any>;
 
   constructor() {
-    super(name);
-    this.version(version).stores(stores);
+    this.db = new PouchDB('fedsim-database');
+    this.Wrestler = new PouchDBTable(this.db, 'Wrestler');
+    this.Brand = new PouchDBTable(this.db, 'Brand');
+    this.Company = new PouchDBTable(this.db, 'Company');
+    this.Production = new PouchDBTable(this.db, 'Production');
+    this.Championship = new PouchDBTable(this.db, 'Championship');
+    this.Show = new PouchDBTable(this.db, 'Show');
+    this.Venue = new PouchDBTable(this.db, 'Venue');
+    this.Segment = new PouchDBTable(this.db, 'Segment');
+    this.Appearance = new PouchDBTable(this.db, 'Appearance');
+    this.Faction = new PouchDBTable(this.db, 'Faction');
+    this.Draft = new PouchDBTable(this.db, 'Draft');
+    this.Game = new PouchDBTable(this.db, 'Game');
+    this.StorylineTemplate = new PouchDBTable(this.db, 'StorylineTemplate');
+    this.ActiveStoryline = new PouchDBTable(this.db, 'ActiveStoryline');
+    this.StorylineSegment = new PouchDBTable(this.db, 'StorylineSegment');
+    this.StorylineGoal = new PouchDBTable(this.db, 'StorylineGoal');
+    this.Reign = new PouchDBTable(this.db, 'Reign');
+    this.Rumble = new PouchDBTable(this.db, 'Rumble');
+    this.Bet = new PouchDBTable(this.db, 'Bet');
+    this.Favourite = new PouchDBTable(this.db, 'Favourite');
+    this.Notification = new PouchDBTable(this.db, 'Notification');
+  }
+
+  async open(): Promise<void> {
+    // Create indexes for efficient queries
+    await this.db.createIndex({ index: { fields: ['type'] } });
+  }
+
+  async delete(): Promise<void> {
+    await this.db.destroy();
   }
 }
 
@@ -120,10 +314,8 @@ export async function initializeDatabase(): Promise<FedSimDatabase> {
   
   try {
     await dbInstance.open();
-    console.log('Database opened successfully');
     return dbInstance;
   } catch (error) {
-    console.error('Failed to open database:', error);
     throw error;
   }
 }

@@ -45,3 +45,5 @@ coverage/
 # Database files (if any)
 *.db
 *.sqlite
+fedsim-pouch*
+fedsim-database

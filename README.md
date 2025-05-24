@@ -92,6 +92,8 @@ npm start
 
 - `create_production` - Create new wrestling shows
 - `simulate_production` - Run show simulation to generate ratings/revenue
+- `randomize_production` - Randomly book all segments using Fed Simulator's algorithms
+- `create_random_segment` - Add a randomly generated segment to a show
 - `get_production_report` - Detailed show analysis with financials
 - `list_productions` - Recent show history
 - `update_production` - Modify show details
@@ -123,7 +125,7 @@ create_wrestler {
 }
 ```
 
-### Simulate a Wrestling Show
+### Create and Book a Wrestling Show
 
 ```bash
 # Create production
@@ -131,6 +133,14 @@ create_production {
   "name": "Monday Night Raw",
   "date": "2024-01-15T20:00:00Z",
   "brandIds": [1]
+}
+
+# Randomize the booking (auto-generates matches)
+randomize_production {
+  "id": 1,
+  "createSegments": true,
+  "maxSegments": 5,
+  "minPoints": 40
 }
 
 # Simulate the show

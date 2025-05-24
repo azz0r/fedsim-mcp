@@ -8,6 +8,12 @@ import {
   calculateRevenue, 
   calculateViewership 
 } from '../actions/fed-simulator-algorithms.js';
+import {
+  generateAppearances,
+  randomizeSegmentDuration,
+  generateSegmentName,
+  randomizeProductionSegments
+} from '../actions/randomization-algorithms.js';
 
 export function createProductionTools(db: FedSimDatabase) {
   const dbActions = new DatabaseActions(db);
@@ -298,6 +304,234 @@ export function createProductionTools(db: FedSimDatabase) {
     return productionsWithDetails;
   });
 
+  const randomizeProduction = createActionWrapper('Randomize Production', async (productionId: number, options?: {
+    minPoints?: number;
+    maxSegments?: number;
+    createSegments?: boolean;
+  }) => {
+    const production = await db.Production.get(productionId);
+    if (!production) {
+      throw new Error(`Production with ID ${productionId} not found`);
+    }
+
+    // Get all active wrestlers for randomization
+    const wrestlers = await db.Wrestler.filter(w => w.active).toArray();
+    if (wrestlers.length < 2) {
+      throw new Error('Not enough active wrestlers for randomization (minimum 2 required)');
+    }
+
+    let segments = await db.Segment
+      .filter(segment => production.segmentIds.includes(segment.id!))
+      .toArray();
+
+    // Create segments if none exist and createSegments is true
+    if (segments.length === 0 && options?.createSegments) {
+      const segmentCount = Math.min(options.maxSegments || 5, Math.floor(wrestlers.length / 2));
+      const newSegmentIds: number[] = [];
+
+      for (let i = 0; i < segmentCount; i++) {
+        const segmentId = await db.Segment.add({
+          name: `Segment ${i + 1}`,
+          desc: '',
+          championshipIds: [],
+          appearanceIds: [],
+          date: production.date,
+          type: i === segmentCount - 1 ? 'MAIN_EVENT' : 'DEFAULT',
+          duration: 0,
+          rating: 0,
+          complete: false,
+        });
+        newSegmentIds.push(segmentId);
+      }
+
+      // Update production with new segments
+      await db.Production.update(productionId, {
+        segmentIds: [...production.segmentIds, ...newSegmentIds]
+      });
+
+      segments = await db.Segment
+        .filter(segment => newSegmentIds.includes(segment.id!))
+        .toArray();
+    }
+
+    if (segments.length === 0) {
+      throw new Error('No segments found. Use createSegments: true to create segments automatically.');
+    }
+
+    // Track used wrestlers to prevent overuse
+    const usedWrestlerIds: number[] = [];
+    const randomizedSegments: any[] = [];
+
+    for (const segment of segments) {
+      // Clear existing appearances
+      const existingAppearances = await db.Appearance
+        .filter(appearance => segment.appearanceIds.includes(appearance.id!))
+        .toArray();
+      
+      for (const appearance of existingAppearances) {
+        await db.Appearance.delete(appearance.id!);
+      }
+
+      // Generate new appearances
+      const availableWrestlers = wrestlers.filter(w => 
+        w.points >= (options?.minPoints || 30) && 
+        !usedWrestlerIds.includes(w.id!)
+      );
+
+      // If running low on fresh wrestlers, allow reuse of some
+      const wrestlersPool = availableWrestlers.length >= 2 ? availableWrestlers : wrestlers;
+
+      const appearances = generateAppearances({
+        wrestlers: wrestlersPool,
+        exclude: usedWrestlerIds.slice(-4), // Only exclude last 4 used
+        minPoints: options?.minPoints || 30,
+      });
+
+      if (appearances.length === 0) {
+        logger.warning('No suitable wrestlers found for segment', { segment: segment.name });
+        continue;
+      }
+
+      // Create appearances in database
+      const newAppearanceIds: number[] = [];
+      for (const appearance of appearances) {
+        const appearanceId = await db.Appearance.add({
+          wrestlerId: appearance.wrestlerId,
+          groupId: appearance.groupId,
+          manager: appearance.manager,
+          cost: appearance.cost,
+          winner: false,
+          loser: false,
+        });
+        newAppearanceIds.push(appearanceId);
+        usedWrestlerIds.push(appearance.wrestlerId);
+      }
+
+      // Update segment
+      const duration = randomizeSegmentDuration(segment.type);
+      const segmentWrestlers = appearances.map(a => a.wrestler);
+      const name = generateSegmentName(segmentWrestlers);
+
+      await db.Segment.update(segment.id!, {
+        name,
+        duration,
+        appearanceIds: newAppearanceIds,
+        complete: false,
+        rating: 0,
+      });
+
+      randomizedSegments.push({
+        id: segment.id,
+        name,
+        duration,
+        wrestlers: segmentWrestlers.map(w => w.name),
+        type: segment.type,
+      });
+
+      logger.info('Randomized segment', {
+        segment: name,
+        wrestlers: segmentWrestlers.map(w => w.name),
+        duration,
+      });
+    }
+
+    const updatedProduction = await db.Production.get(productionId);
+
+    logger.success('Production randomization complete', {
+      production: production.name,
+      segmentsRandomized: randomizedSegments.length,
+      totalWrestlersUsed: usedWrestlerIds.length,
+    });
+
+    return {
+      production: updatedProduction,
+      randomizedSegments,
+      summary: {
+        segmentsRandomized: randomizedSegments.length,
+        wrestlersUsed: usedWrestlerIds.length,
+        minPointsUsed: options?.minPoints || 30,
+      },
+    };
+  });
+
+  const createRandomSegment = createActionWrapper('Create Random Segment', async (productionId: number, options?: {
+    segmentType?: string;
+    minPoints?: number;
+    wrestlerCount?: number;
+  }) => {
+    const production = await db.Production.get(productionId);
+    if (!production) {
+      throw new Error(`Production with ID ${productionId} not found`);
+    }
+
+    // Get available wrestlers
+    const wrestlers = await db.Wrestler.filter(w => w.active).toArray();
+    
+    // Generate appearances
+    const appearances = generateAppearances({
+      wrestlers,
+      minPoints: options?.minPoints || 40,
+    });
+
+    if (appearances.length === 0) {
+      throw new Error('No suitable wrestlers found for random segment');
+    }
+
+    // Create segment
+    const segmentWrestlers = appearances.map(a => a.wrestler);
+    const name = generateSegmentName(segmentWrestlers);
+    const duration = randomizeSegmentDuration(options?.segmentType || 'DEFAULT');
+
+    const segmentId = await db.Segment.add({
+      name,
+      desc: `Randomly generated segment featuring ${segmentWrestlers.map(w => w.name).join(', ')}`,
+      championshipIds: [],
+      appearanceIds: [],
+      date: production.date,
+      type: options?.segmentType || 'DEFAULT',
+      duration,
+      rating: 0,
+      complete: false,
+    });
+
+    // Create appearances
+    const appearanceIds: number[] = [];
+    for (const appearance of appearances) {
+      const appearanceId = await db.Appearance.add({
+        wrestlerId: appearance.wrestlerId,
+        groupId: appearance.groupId,
+        manager: appearance.manager,
+        cost: appearance.cost,
+        winner: false,
+        loser: false,
+      });
+      appearanceIds.push(appearanceId);
+    }
+
+    // Update segment with appearances
+    await db.Segment.update(segmentId, { appearanceIds });
+
+    // Add segment to production
+    await db.Production.update(productionId, {
+      segmentIds: [...production.segmentIds, segmentId]
+    });
+
+    const createdSegment = await db.Segment.get(segmentId);
+
+    logger.success('Created random segment', {
+      segment: name,
+      wrestlers: segmentWrestlers.map(w => w.name),
+      duration,
+      type: options?.segmentType || 'DEFAULT',
+    });
+
+    return {
+      segment: createdSegment,
+      wrestlers: segmentWrestlers,
+      appearances,
+    };
+  });
+
   return new Map([
     ['create_production', {
       name: 'create_production',
@@ -395,6 +629,55 @@ export function createProductionTools(db: FedSimDatabase) {
           args.updates.date = new Date(args.updates.date);
         }
         const result = await dbActions.updateRecord('Production', args.id, args.updates);
+        return result.success ? result.data : `Error: ${result.error}`;
+      },
+    }],
+    ['randomize_production', {
+      name: 'randomize_production',
+      description: 'Randomize all segments in a production with Fed Simulator\'s booking algorithms',
+      inputSchema: {
+        type: 'object',
+        properties: {
+          id: { type: 'number', description: 'Production ID' },
+          minPoints: { type: 'number', description: 'Minimum wrestler rating (default: 30)', default: 30 },
+          maxSegments: { type: 'number', description: 'Maximum segments to create if none exist (default: 5)', default: 5 },
+          createSegments: { type: 'boolean', description: 'Create segments if none exist (default: false)', default: false },
+        },
+        required: ['id'],
+      },
+      handler: async (args: any) => {
+        const result = await randomizeProduction(args.id, {
+          minPoints: args.minPoints,
+          maxSegments: args.maxSegments,
+          createSegments: args.createSegments,
+        });
+        return result.success ? result.data : `Error: ${result.error}`;
+      },
+    }],
+    ['create_random_segment', {
+      name: 'create_random_segment',
+      description: 'Create a new random segment for a production',
+      inputSchema: {
+        type: 'object',
+        properties: {
+          productionId: { type: 'number', description: 'Production ID' },
+          segmentType: { 
+            type: 'string', 
+            enum: ['DEFAULT', 'MAIN_EVENT', 'OPENING', 'MID_CARD', 'SQUASH', 'PROMO', 'BACKSTAGE'],
+            description: 'Type of segment (default: DEFAULT)',
+            default: 'DEFAULT'
+          },
+          minPoints: { type: 'number', description: 'Minimum wrestler rating (default: 40)', default: 40 },
+          wrestlerCount: { type: 'number', description: 'Number of wrestlers (2-4, auto-selected if not specified)' },
+        },
+        required: ['productionId'],
+      },
+      handler: async (args: any) => {
+        const result = await createRandomSegment(args.productionId, {
+          segmentType: args.segmentType,
+          minPoints: args.minPoints,
+          wrestlerCount: args.wrestlerCount,
+        });
         return result.success ? result.data : `Error: ${result.error}`;
       },
     }],

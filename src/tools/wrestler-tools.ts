@@ -1,9 +1,30 @@
 import { FedSimDatabase, Wrestler } from '../database/db.js';
 import { DatabaseActions, createActionWrapper } from '../actions/action-wrapper.js';
 import { logger } from '../utils/logger.js';
+import type { PouchDBSelector, WrestlerSearchQuery } from '../types/database.js';
 
 export function createWrestlerTools(db: FedSimDatabase) {
   const dbActions = new DatabaseActions(db);
+
+  // Helper function to build safe database selectors
+  const buildWrestlerSelector = (query: WrestlerSearchQuery): PouchDBSelector => {
+    const selector: PouchDBSelector = { type: 'Wrestler' };
+    
+    // Only add validated fields to selector
+    if (query.active !== undefined) {
+      selector.active = query.active;
+    }
+    
+    if (query.alignment && ['FACE', 'HEEL', 'NEUTRAL'].includes(query.alignment)) {
+      selector.alignment = query.alignment;
+    }
+    
+    if (query.brand && typeof query.brand === 'number' && query.brand > 0) {
+      selector.brandIds = { $elemMatch: query.brand };
+    }
+    
+    return selector;
+  };
 
   // Wrestler-specific actions
   const boostWrestler = createActionWrapper('Boost Wrestler', async (id: number) => {
@@ -133,43 +154,41 @@ export function createWrestlerTools(db: FedSimDatabase) {
     return createdWrestler;
   });
 
-  const searchWrestlers = createActionWrapper('Search Wrestlers', async (query: {
-    name?: string;
-    alignment?: string;
-    brand?: number;
-    active?: boolean;
-    limit?: number;
-  }) => {
-    let collection = db.Wrestler.toCollection();
-    
-    if (query.active !== undefined) {
-      collection = collection.filter(w => w.active === query.active);
+  const searchWrestlers = createActionWrapper('Search Wrestlers', async (query: WrestlerSearchQuery) => {
+    // Input validation
+    if (query.name && query.name.length > 50) {
+      throw new Error('Search term too long (maximum 50 characters)');
     }
     
-    if (query.alignment) {
-      collection = collection.filter(w => w.alignment === query.alignment);
+    if (query.limit && (query.limit < 1 || query.limit > 100)) {
+      throw new Error('Limit must be between 1 and 100');
     }
+
+    // Build safe selector using helper function
+    const selector = buildWrestlerSelector(query);
     
-    if (query.brand) {
-      collection = collection.filter(w => w.brandIds.includes(query.brand!));
-    }
+    // Fetch from PouchDB with typed method
+    const result = await db.find<Wrestler>({ selector });
+    let wrestlers = result.docs;
     
+    // In-memory name filter (partial match) with input sanitization
     if (query.name) {
-      collection = collection.filter(w => 
-        w.name.toLowerCase().includes(query.name!.toLowerCase())
+      const searchTerm = query.name.toLowerCase().trim();
+      wrestlers = wrestlers.filter(w =>
+        w.name && w.name.toLowerCase().includes(searchTerm)
       );
     }
     
+    // In-memory limit
     if (query.limit) {
-      collection = collection.limit(query.limit);
+      wrestlers = wrestlers.slice(0, query.limit);
     }
     
-    const wrestlers = await collection.toArray();
-    
-    logger.info('Searched wrestlers', { 
-      query,
+    logger.info('Searched wrestlers', {
+      queryType: query.name ? 'name_search' : 'filter_search',
       resultsCount: wrestlers.length,
-      results: wrestlers.map(w => ({ id: w.id, name: w.name, alignment: w.alignment }))
+      hasNameFilter: !!query.name,
+      hasAlignmentFilter: !!query.alignment
     });
     
     return wrestlers;

@@ -1,5 +1,6 @@
 import PouchDB from 'pouchdb';
 import PouchDBFind from 'pouchdb-find';
+import type { PouchDBSelector, PouchDBFindResult, PouchDBFindOptions, DatabaseError } from '../types/database.js';
 PouchDB.plugin(PouchDBFind);
 
 export interface Wrestler {
@@ -116,7 +117,8 @@ class PouchDBTable<T extends { _id?: string; id?: number; type: string }> {
       const doc = await this.db.get(`${this.docType.toLowerCase()}:${id}`);
       return doc as unknown as T;
     } catch (e) {
-      if ((e as any).status === 404) return undefined;
+      const error = e as DatabaseError;
+      if (error.status === 404) return undefined;
       throw e;
     }
   }
@@ -296,6 +298,20 @@ export class FedSimDatabase {
   async open(): Promise<void> {
     // Create indexes for efficient queries
     await this.db.createIndex({ index: { fields: ['type'] } });
+  }
+
+  async find<T>(options: PouchDBFindOptions): Promise<PouchDBFindResult<T>> {
+    try {
+      const result = await this.db.find(options);
+      return {
+        docs: result.docs as T[],
+        bookmark: (result as any).bookmark,
+        warning: (result as any).warning
+      };
+    } catch (e) {
+      const error = e as DatabaseError;
+      throw new Error(`Database find failed: ${error.message || error.reason || 'Unknown error'}`);
+    }
   }
 
   async delete(): Promise<void> {

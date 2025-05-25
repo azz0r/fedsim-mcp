@@ -58,11 +58,10 @@ export function createBrandTools(db: FedSimDatabase) {
     if (!brand) {
       throw new Error(`Brand with ID ${brandId} not found`);
     }
-
-    const wrestlers = await db.Wrestler
-      .filter(wrestler => wrestler.brandIds.includes(brandId) && wrestler.active)
-      .toArray();
-
+    // PouchDB: find all active wrestlers for this brand
+    const wrestlers = (await (db as any).find({
+      selector: { type: 'Wrestler', brandIds: { $elemMatch: brandId }, active: true }
+    })).docs as any[];
     const rosterStats = {
       totalWrestlers: wrestlers.length,
       byAlignment: {
@@ -77,13 +76,11 @@ export function createBrandTools(db: FedSimDatabase) {
       averageRating: Math.round(wrestlers.reduce((sum, w) => sum + w.points, 0) / wrestlers.length || 0),
       totalCost: wrestlers.reduce((sum, w) => sum + w.cost, 0),
     };
-
-    logger.info('Retrieved brand roster', { 
+    logger.info('Retrieved brand roster', {
       brand: brand.name,
       stats: rosterStats,
-      wrestlers: wrestlers.map(w => ({ id: w.id, name: w.name, alignment: w.alignment, points: w.points }))
+      wrestlers: wrestlers.map(w => ({ id: w._id, name: w.name, alignment: w.alignment, points: w.points }))
     });
-
     return {
       brand: { id: brand.id, name: brand.name },
       wrestlers,
@@ -96,18 +93,15 @@ export function createBrandTools(db: FedSimDatabase) {
     if (!brand) {
       throw new Error(`Brand with ID ${brandId} not found`);
     }
-
-    // Get recent productions for this brand
-    const recentProductions = await db.Production
-      .filter(production => production.brandIds.includes(brandId))
-      .reverse()
-      .limit(10)
-      .toArray();
-
+    // PouchDB: find recent productions for this brand, sorted by date desc, limit 10
+    const recentProductions = (await (db as any).find({
+      selector: { type: 'Production', brandIds: { $elemMatch: brandId } },
+      sort: [{ date: 'desc' }],
+      limit: 10
+    })).docs as any[];
     const totalRevenue = recentProductions.reduce((sum, p) => sum + (p.attendanceIncome + p.merchIncome), 0);
     const totalCosts = recentProductions.reduce((sum, p) => sum + (p.wrestlersCost + p.segmentsCost), 0);
     const netProfit = totalRevenue - totalCosts;
-
     const financials = {
       currentBalance: brand.balance,
       recentShows: recentProductions.length,
@@ -116,17 +110,15 @@ export function createBrandTools(db: FedSimDatabase) {
       netProfit,
       averagePerShow: recentProductions.length > 0 ? Math.round(netProfit / recentProductions.length) : 0,
     };
-
-    logger.info('Retrieved brand financials', { 
+    logger.info('Retrieved brand financials', {
       brand: brand.name,
       financials
     });
-
     return {
       brand: { id: brand.id, name: brand.name },
       financials,
       recentProductions: recentProductions.map(p => ({
-        id: p.id,
+        id: p._id,
         name: p.name,
         date: p.date,
         revenue: p.attendanceIncome + p.merchIncome,

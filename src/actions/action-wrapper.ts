@@ -1,5 +1,6 @@
 import { FedSimDatabase } from '../database/db.js';
 import { logger } from '../utils/logger.js';
+import type { TableName, DatabaseTable } from '../types/database.js';
 
 export interface ActionResult<T = any> {
   success: boolean;
@@ -58,12 +59,25 @@ export function createActionWrapper<T extends any[], R>(
 export class DatabaseActions {
   constructor(private db: FedSimDatabase) {}
 
+  // Helper method to safely access database tables
+  private getTable<T>(tableName: string): DatabaseTable<T> {
+    const validTables: TableName[] = ['Wrestler', 'Brand', 'Company', 'Production', 'Championship', 'Show', 'Venue', 'Segment', 'Appearance', 'Faction'];
+    
+    if (!validTables.includes(tableName as TableName)) {
+      throw new Error(`Invalid table name: ${tableName}`);
+    }
+    
+    const table = (this.db as any)[tableName];
+    if (!table) {
+      throw new Error(`Table '${tableName}' not found`);
+    }
+    
+    return table as DatabaseTable<T>;
+  }
+
   // Generic CRUD operations with logging
   createRecord = createActionWrapper('Create Record', async (table: string, data: any) => {
-    const tableRef = (this.db as any)[table];
-    if (!tableRef) {
-      throw new Error(`Table '${table}' not found`);
-    }
+    const tableRef = this.getTable(table);
     
     const id = await tableRef.add(data);
     const record = await tableRef.get(id);
@@ -73,10 +87,7 @@ export class DatabaseActions {
   });
 
   updateRecord = createActionWrapper('Update Record', async (table: string, id: number, updates: any) => {
-    const tableRef = (this.db as any)[table];
-    if (!tableRef) {
-      throw new Error(`Table '${table}' not found`);
-    }
+    const tableRef = this.getTable(table);
     
     await tableRef.update(id, updates);
     const record = await tableRef.get(id);
@@ -86,10 +97,7 @@ export class DatabaseActions {
   });
 
   deleteRecord = createActionWrapper('Delete Record', async (table: string, id: number) => {
-    const tableRef = (this.db as any)[table];
-    if (!tableRef) {
-      throw new Error(`Table '${table}' not found`);
-    }
+    const tableRef = this.getTable(table);
     
     const record = await tableRef.get(id);
     await tableRef.delete(id);
@@ -99,10 +107,7 @@ export class DatabaseActions {
   });
 
   fetchById = createActionWrapper('Fetch by ID', async (table: string, id: number) => {
-    const tableRef = (this.db as any)[table];
-    if (!tableRef) {
-      throw new Error(`Table '${table}' not found`);
-    }
+    const tableRef = this.getTable(table);
     
     const record = await tableRef.get(id);
     logger.info(`Fetched ${table} by ID`, { id, found: !!record });
@@ -110,26 +115,18 @@ export class DatabaseActions {
   });
 
   fetchAll = createActionWrapper('Fetch All', async (table: string, limit?: number) => {
-    const tableRef = (this.db as any)[table];
-    if (!tableRef) {
-      throw new Error(`Table '${table}' not found`);
-    }
+    const tableRef = this.getTable(table);
     
-    let query = tableRef.toCollection();
-    if (limit) {
-      query = query.limit(limit);
-    }
+    const records = limit 
+      ? await tableRef.toCollection().limit(limit).toArray()
+      : await tableRef.toCollection().toArray();
     
-    const records = await query.toArray();
     logger.info(`Fetched all ${table} records`, { count: records.length, limit });
     return records;
   });
 
   countRecords = createActionWrapper('Count Records', async (table: string) => {
-    const tableRef = (this.db as any)[table];
-    if (!tableRef) {
-      throw new Error(`Table '${table}' not found`);
-    }
+    const tableRef = this.getTable(table);
     
     const count = await tableRef.count();
     logger.info(`Counted ${table} records`, { count });
@@ -137,10 +134,7 @@ export class DatabaseActions {
   });
 
   resetTable = createActionWrapper('Reset Table', async (table: string) => {
-    const tableRef = (this.db as any)[table];
-    if (!tableRef) {
-      throw new Error(`Table '${table}' not found`);
-    }
+    const tableRef = this.getTable(table);
     
     const countBefore = await tableRef.count();
     await tableRef.clear();

@@ -163,7 +163,11 @@ export function createGeneralTools(db: any) {
           schema: tableSchemas[tableName] || "++id",
           rowCount: data[tableName].length
         })),
-        data: data
+        data: Object.keys(data).map(tableName => ({
+          tableName: tableName,
+          inbound: true,
+          rows: data[tableName]
+        }))
       }
     };
 

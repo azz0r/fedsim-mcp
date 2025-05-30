@@ -99,7 +99,12 @@ export function createGeneralTools(db: any) {
   });
 
   const exportDexieData = createActionWrapper('Export Dexie Data', async (tables?: string[]) => {
-    const tablesToExport = tables || ['Wrestler', 'Brand', 'Company', 'Production', 'Championship', 'Venue', 'Show'];
+    // Export all Fed Simulator tables to ensure compatibility
+    const tablesToExport = tables || [
+      'Venue', 'Company', 'Brand', 'Wrestler', 'Championship', 'Show', 'Production', 
+      'Segment', 'Appearance', 'Faction', 'Draft', 'Game', 'StorylineTemplate', 
+      'Storyline', 'StorylineBeat', 'Reign', 'Rumble', 'Favourite', 'Bet'
+    ];
     
     // Define proper schemas for each table based on Fed Simulator X
     const tableSchemas: Record<string, string> = {
@@ -109,9 +114,19 @@ export function createGeneralTools(db: any) {
       Wrestler: "++id,name,desc,image,color,backgroundColor,images,brandIds,entranceVideoUrl,pushed,remainingAppearances,contractType,contractExpires,status,billedFrom,region,country,dob,height,weight,alignment,gender,role,followers,losses,wins,streak,draws,points,morale,stamina,popularity,charisma,damage,active,retired,cost,special,finisher,musicUrl",
       Championship: "++id,name,desc,image,color,backgroundColor,images,wrestlerIds,brandIds,gender,holders,minPoints,maxPoints,rank,active",
       Show: "++id,name,desc,image,color,backgroundColor,images,brandIds,commentatorIds,refereeIds,interviewerIds,authorityIds,special,frequency,monthIndex,weekIndex,dayIndex,maxDuration,entranceVideoUrl,minPoints,maxPoints,income,defaultAmountSegments,avgTicketPrice,avgMerchPrice,avgViewers,avgAttendance",
+      Bet: "++id,segmentId,wrestlerId,amount,type,complete,date",
       Production: "++id,name,desc,image,color,backgroundColor,brandIds,venueId,segmentIds,showId,date,wrestlersCost,segmentsCost,merchIncome,attendanceIncome,attendance,viewers,step,complete",
       Segment: "++id,name,championshipIds,appearanceIds,date,type,duration,rating,complete",
-      Appearance: "++id,wrestlerId,groupId,manager,cost,winner,loser,draw,[groupId+wrestlerId]"
+      Appearance: "++id,wrestlerId,groupId,manager,cost,winner,loser,draw,[groupId+wrestlerId]",
+      Faction: "++id,name,desc,image,color,backgroundColor,images,brandIds,leaderIds,managerIds,wrestlerIds,startDate,endDate",
+      Draft: "++id,startDate,endDate,contractType,amountOfAppearances,costPerAppearance,pick,complete,brandId,wrestlerId",
+      Game: "++id,brandIds,gender,tutorials,storeVersion,desc,color,backgroundColor,date,dark",
+      StorylineTemplate: "++id,name,description,category,suggestedDurationWeeks,roles,requirements,storyBeats,active",
+      Storyline: "++id,templateId,name,description,targetEventId,startDate,endDate,status,participants,intensity,peakIntensity",
+      StorylineBeat: "++id,storylineId,beatId,segmentId,completedDate,productionId",
+      Reign: "++id,wrestlerIds,championshipId,defenses,startDate,endDate",
+      Rumble: "++id,name,desc,image,color,backgroundColor,date,championshipId,entryIds,enteredIds,eliminationIds,eliminatedByIds,winnerId,gender,brandIds,duration,active,complete",
+      Favourite: "++id,itemId,itemGroup,dateFavourited"
     };
 
     const data: Record<string, any[]> = {};
@@ -128,7 +143,8 @@ export function createGeneralTools(db: any) {
           return cleanItem;
         });
       } catch (error) {
-        logger.warning(`Failed to export table ${table}`, { error: error instanceof Error ? error.message : String(error) });
+        // Include empty tables - Fed Simulator expects all tables to exist
+        logger.info(`Table ${table} not found or empty, including as empty array`, { error: error instanceof Error ? error.message : String(error) });
         data[table] = [];
       }
     }

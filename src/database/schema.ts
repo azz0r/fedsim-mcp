@@ -21,7 +21,7 @@ export const Groups = [
   },
   {
     group: 'Wrestler',
-    params: `${standardFields}, images, brandIds, entranceVideoUrl, pushed, remainingAppearances, contractType, contractExpires, status, billedFrom, region, country, dob, height, weight, alignment, gender, role, followers, losses, wins, streak, draws, points, morale, stamina, popularity, charisma, damage, active, retired, cost, special, finisher, musicUrl`,
+    params: `${standardFields}, images, brandIds, entranceVideoUrl, pushed, remainingAppearances, contractType, contractExpires, status, billedFrom, region, country, dob, height, weight, alignment, gender, role, followers, losses, wins, streak, draws, points, morale, stamina, popularity, charisma, damage, active, retired, cost, special, finisher, musicUrl, totalReigns`,
   },
   {
     group: 'Championship',

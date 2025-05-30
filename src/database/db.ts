@@ -46,6 +46,7 @@ export interface Wrestler {
   special: string;
   finisher: string;
   musicUrl: string;
+  totalReigns: number;
 }
 
 export interface Brand {

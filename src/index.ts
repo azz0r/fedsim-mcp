@@ -33,10 +33,10 @@ async function initializeServer() {
   const { createProductionTools } = await import('./tools/production-tools.js');
   const { createGeneralTools } = await import('./tools/general-tools.js');
 
-  console.log(chalk.blue('🏟️  Initializing Fed Simulator MCP Server...'));
+  console.error(chalk.blue('🏟️  Initializing Fed Simulator MCP Server...'));
   try {
     db = await initializeDatabase();
-    console.log(chalk.green('✅ Database initialized'));
+    console.error(chalk.green('✅ Database initialized'));
     const wrestlerTools = createWrestlerTools(db);
     const brandTools = createBrandTools(db);
     const productionTools = createProductionTools(db);
@@ -45,13 +45,13 @@ async function initializeServer() {
     for (const [key, value] of brandTools) allTools.set(key, value);
     for (const [key, value] of productionTools) allTools.set(key, value);
     for (const [key, value] of generalTools) allTools.set(key, value);
-    console.log(chalk.green(`✅ Loaded ${allTools.size} tools`));
-    console.log(chalk.blue('🚀 Fed Simulator MCP Server ready!'));
-    console.log(chalk.yellow('\n📋 Available tools:'));
+    console.error(chalk.green(`✅ Loaded ${allTools.size} tools`));
+    console.error(chalk.blue('🚀 Fed Simulator MCP Server ready!'));
+    console.error(chalk.yellow('\n📋 Available tools:'));
     for (const [name, tool] of allTools) {
-      console.log(chalk.gray(`  • ${name}: ${tool.description}`));
+      console.error(chalk.gray(`  • ${name}: ${tool.description}`));
     }
-    console.log('');
+    console.error('');
   } catch (error) {
     console.error(chalk.red('❌ Failed to initialize server:'), error);
     process.exit(1);
@@ -77,10 +77,10 @@ server.setRequestHandler(CallToolRequestSchema, async (request) => {
     );
   }
   try {
-    console.log(chalk.cyan(`🔧 Executing: ${name}`));
-    console.log(chalk.gray(`   Args: ${JSON.stringify(args, null, 2)}`));
+    console.error(chalk.cyan(`🔧 Executing: ${name}`));
+    console.error(chalk.gray(`   Args: ${JSON.stringify(args, null, 2)}`));
     const result = await tool.handler(args);
-    console.log(chalk.green(`✅ ${name} completed successfully`));
+    console.error(chalk.green(`✅ ${name} completed successfully`));
     return {
       content: [
         {
@@ -102,14 +102,14 @@ server.setRequestHandler(CallToolRequestSchema, async (request) => {
 async function runDemoMode() {
   // Import DB only after patch
   const { initializeDatabase } = await import('./database/db.js');
-  console.log(chalk.magenta('\n🎬 Running Fed Simulator Demo Mode...'));
+  console.error(chalk.magenta('\n🎬 Running Fed Simulator Demo Mode...'));
   db = await initializeDatabase();
   // 1. Create WWE federation (Company)
   const companyId = await db.Company.add({ name: 'WWE', desc: 'World Wrestling Entertainment', image: null });
-  console.log(chalk.green('✅ Created company: WWE'));
+  console.error(chalk.green('✅ Created company: WWE'));
   // 2. Create 'Raw' brand
   const brandId = await db.Brand.add({ name: 'Raw', desc: 'Monday Night Raw', color: '#c00', backgroundColor: '#fff', companyId });
-  console.log(chalk.green('✅ Created brand: Raw'));
+  console.error(chalk.green('✅ Created brand: Raw'));
   // 3. Create a few demo wrestlers
   const wrestlerIds = [];
   for (const name of ['John Cena', 'Roman Reigns', 'Becky Lynch', 'Seth Rollins']) {
@@ -155,7 +155,7 @@ async function runDemoMode() {
       musicUrl: '',
     });
     wrestlerIds.push(id);
-    console.log(chalk.green(`✅ Created wrestler: ${name}`));
+    console.error(chalk.green(`✅ Created wrestler: ${name}`));
   }
   // 4. Create a show (Production)
   const showId = await db.Production.add({
@@ -167,7 +167,7 @@ async function runDemoMode() {
     segmentIds: [],
     complete: false,
   });
-  console.log(chalk.green('✅ Created show: Monday Night Raw'));
+  console.error(chalk.green('✅ Created show: Monday Night Raw'));
   // 5. Simulate the show (mark as complete, random results)
   await db.Production.update(showId, { complete: true });
   // Reward winners (randomly pick two)
@@ -175,17 +175,17 @@ async function runDemoMode() {
   for (const id of winners) {
     const wrestler = await db.Wrestler.get(id);
     await db.Wrestler.update(id, { wins: (wrestler?.wins || 0) + 1, popularity: (wrestler?.popularity || 0) + 10 });
-    console.log(chalk.yellow(`🏆 Rewarded winner: ${wrestler?.name}`));
+    console.error(chalk.yellow(`🏆 Rewarded winner: ${wrestler?.name}`));
   }
   // 6. Move to next month (simulate time passing)
   // (For demo, just print message)
-  console.log(chalk.blue('\n⏩ Moving to next month...'));
+  console.error(chalk.blue('\n⏩ Moving to next month...'));
   // 7. Reset (clear DB)
   await db.delete();
   db = null;
-  console.log(chalk.red('\n🔄 Demo complete. Database reset.'));
+  console.error(chalk.red('\n🔄 Demo complete. Database reset.'));
   // 8. Print summary
-  console.log(chalk.magenta('\n🎉 Demo finished! WWE, Raw, 4 wrestlers, 1 show, 2 winners.'));
+  console.error(chalk.magenta('\n🎉 Demo finished! WWE, Raw, 4 wrestlers, 1 show, 2 winners.'));
 }
 // --- END DEMO MODE LOGIC ---
 
@@ -194,7 +194,7 @@ async function main() {
   await initializeServer();
   const transport = new StdioServerTransport();
   await server.connect(transport);
-  console.log(chalk.green('Fed Simulator MCP Server running on stdio'));
+  console.error(chalk.green('Fed Simulator MCP Server running on stdio'));
 }
 
 if (import.meta.url === `file://${process.argv[1]}`) {

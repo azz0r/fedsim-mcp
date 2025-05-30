@@ -13,7 +13,7 @@ import chalk from 'chalk';
 const server = new Server(
   {
     name: 'fedsimulator-mcp',
-    version: '1.0.5',
+    version: '1.0.6',
   },
   {
     capabilities: {
@@ -26,8 +26,8 @@ let db: any;
 let allTools: Map<string, any> = new Map();
 
 async function initializeServer() {
-  // Import DB and tool creators only after patch
-  const { initializeDatabase } = await import('./database/db.js');
+  // Import simple DB and tool creators
+  const { db: database } = await import('./database/simple-db.js');
   const { createWrestlerTools } = await import('./tools/wrestler-tools.js');
   const { createBrandTools } = await import('./tools/brand-tools.js');
   const { createProductionTools } = await import('./tools/production-tools.js');
@@ -35,7 +35,7 @@ async function initializeServer() {
 
   console.error(chalk.blue('🏟️  Initializing Fed Simulator MCP Server...'));
   try {
-    db = await initializeDatabase();
+    db = database;
     console.error(chalk.green('✅ Database initialized'));
     const wrestlerTools = createWrestlerTools(db);
     const brandTools = createBrandTools(db);

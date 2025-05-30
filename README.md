@@ -233,7 +233,7 @@ npm test
 ## Architecture
 
 - **TypeScript**: Full type safety and modern JS features
-- **PouchDB**: NoSQL document database with memory adapter for Node.js
+- **In-Memory Database**: Simple, fast document storage for MCP operations
 - **MCP SDK**: Standard Model Context Protocol implementation
 - **Chalk**: Rich console output with colors
 - **Action Wrappers**: Automatic logging and error handling for all operations

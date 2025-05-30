@@ -1,8 +1,7 @@
-import { FedSimDatabase } from '../database/db.js';
 import { DatabaseActions, createActionWrapper } from '../actions/action-wrapper.js';
 import { logger } from '../utils/logger.js';
 
-export function createGeneralTools(db: FedSimDatabase) {
+export function createGeneralTools(db: any) {
   const dbActions = new DatabaseActions(db);
 
   const getDatabaseStats = createActionWrapper('Get Database Stats', async () => {
@@ -101,6 +100,20 @@ export function createGeneralTools(db: FedSimDatabase) {
 
   const exportDexieData = createActionWrapper('Export Dexie Data', async (tables?: string[]) => {
     const tablesToExport = tables || ['Wrestler', 'Brand', 'Company', 'Production', 'Championship', 'Venue', 'Show'];
+    
+    // Define proper schemas for each table based on Fed Simulator X
+    const tableSchemas: Record<string, string> = {
+      Venue: "++id,name,desc,image,color,backgroundColor,images,capacity,location,cost,revenueMultiplier,timeZone,setupTimeInDays,historicalRating,pyroRating,lightingRating,parkingRating",
+      Company: "++id,name,desc,image,color,backgroundColor",
+      Brand: "++id,name,desc,image,color,backgroundColor,images,directorId,balance,companyId",
+      Wrestler: "++id,name,desc,image,color,backgroundColor,images,brandIds,entranceVideoUrl,pushed,remainingAppearances,contractType,contractExpires,status,billedFrom,region,country,dob,height,weight,alignment,gender,role,followers,losses,wins,streak,draws,points,morale,stamina,popularity,charisma,damage,active,retired,cost,special,finisher,musicUrl",
+      Championship: "++id,name,desc,image,color,backgroundColor,images,wrestlerIds,brandIds,gender,holders,minPoints,maxPoints,rank,active",
+      Show: "++id,name,desc,image,color,backgroundColor,images,brandIds,commentatorIds,refereeIds,interviewerIds,authorityIds,special,frequency,monthIndex,weekIndex,dayIndex,maxDuration,entranceVideoUrl,minPoints,maxPoints,income,defaultAmountSegments,avgTicketPrice,avgMerchPrice,avgViewers,avgAttendance",
+      Production: "++id,name,desc,image,color,backgroundColor,brandIds,venueId,segmentIds,showId,date,wrestlersCost,segmentsCost,merchIncome,attendanceIncome,attendance,viewers,step,complete",
+      Segment: "++id,name,championshipIds,appearanceIds,date,type,duration,rating,complete",
+      Appearance: "++id,wrestlerId,groupId,manager,cost,winner,loser,draw,[groupId+wrestlerId]"
+    };
+
     const data: Record<string, any[]> = {};
 
     for (const table of tablesToExport) {
@@ -122,16 +135,16 @@ export function createGeneralTools(db: FedSimDatabase) {
 
     const totalRecords = Object.values(data).reduce((sum, tableData) => sum + tableData.length, 0);
 
-    // Create Dexie-compatible export format
+    // Create Dexie-compatible export format matching Fed Simulator X structure
     const dexieExport = {
       formatName: "dexie",
       formatVersion: 1,
       data: {
         databaseName: "FedSim00017",
-        databaseVersion: 1,
+        databaseVersion: 17,
         tables: Object.keys(data).map(tableName => ({
           name: tableName,
-          schema: "++id", // Basic auto-increment schema
+          schema: tableSchemas[tableName] || "++id",
           rowCount: data[tableName].length
         })),
         data: data

@@ -13,7 +13,7 @@ import chalk from 'chalk';
 const server = new Server(
   {
     name: 'fedsimulator-mcp',
-    version: '1.0.13',
+    version: '1.0.14',
   },
   {
     capabilities: {

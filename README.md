@@ -45,7 +45,7 @@ Add to your MCP client configuration:
   "mcpServers": {
     "fedsimulator": {
       "command": "npx",
-      "args": ["fedsimulator-mcp"]
+      "args": ["-y", "--package=fedsimulator-mcp", "fedsimulator-mcp"]
     }
   }
 }

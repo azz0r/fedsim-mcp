@@ -99,6 +99,54 @@ export function createGeneralTools(db: FedSimDatabase) {
     };
   });
 
+  const exportDexieData = createActionWrapper('Export Dexie Data', async (tables?: string[]) => {
+    const tablesToExport = tables || ['Wrestler', 'Brand', 'Company', 'Production', 'Championship', 'Venue', 'Show'];
+    const data: Record<string, any[]> = {};
+
+    for (const table of tablesToExport) {
+      try {
+        const tableData = await (db as any)[table].toArray();
+        // Clean the data for Dexie import - remove MCP-specific fields
+        data[table] = tableData.map((item: any) => {
+          const cleanItem = { ...item };
+          // Remove internal MCP fields that might conflict
+          delete cleanItem._id;
+          delete cleanItem.type;
+          return cleanItem;
+        });
+      } catch (error) {
+        logger.warning(`Failed to export table ${table}`, { error: error instanceof Error ? error.message : String(error) });
+        data[table] = [];
+      }
+    }
+
+    const totalRecords = Object.values(data).reduce((sum, tableData) => sum + tableData.length, 0);
+
+    // Create Dexie-compatible export format
+    const dexieExport = {
+      formatName: "dexie",
+      formatVersion: 1,
+      data: {
+        databaseName: "FedSim00017",
+        databaseVersion: 1,
+        tables: Object.keys(data).map(tableName => ({
+          name: tableName,
+          schema: "++id", // Basic auto-increment schema
+          rowCount: data[tableName].length
+        })),
+        data: data
+      }
+    };
+
+    logger.success('Created Dexie export', {
+      tables: tablesToExport,
+      totalRecords,
+      exportSize: JSON.stringify(dexieExport).length,
+    });
+
+    return dexieExport;
+  });
+
   const resetDatabase = createActionWrapper('Reset Database', async (tables?: string[]) => {
     const tablesToReset = tables || ['Wrestler', 'Brand', 'Company', 'Production', 'Segment', 'Appearance'];
     const resetResults: Record<string, number> = {};
@@ -303,6 +351,24 @@ export function createGeneralTools(db: FedSimDatabase) {
       },
       handler: async (args: any) => {
         const result = await dbActions.countRecords(args.table);
+        return result.success ? result.data : `Error: ${result.error}`;
+      },
+    }],
+    ['export_dexie_data', {
+      name: 'export_dexie_data',
+      description: 'Export data in Dexie-compatible format for importing into Fed Simulator X',
+      inputSchema: {
+        type: 'object',
+        properties: {
+          tables: { 
+            type: 'array',
+            items: { type: 'string' },
+            description: 'Specific tables to export (optional, defaults to main tables)' 
+          },
+        },
+      },
+      handler: async (args: any) => {
+        const result = await exportDexieData(args?.tables);
         return result.success ? result.data : `Error: ${result.error}`;
       },
     }],

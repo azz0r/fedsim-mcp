@@ -155,6 +155,16 @@ class SimpleDBTable<T extends { _id?: string; id?: number; type: string }> {
     };
   }
 
+  filter(predicate: (item: T) => boolean) {
+    const self = this;
+    return {
+      async toArray(): Promise<T[]> {
+        const all = Array.from(self.storage.values()).filter(doc => doc.type === self.docType) as T[];
+        return all.filter(predicate);
+      }
+    };
+  }
+
   async query(selector: any, options: any = {}): Promise<T[]> {
     let results = Array.from(this.storage.values()).filter(doc => doc.type === this.docType);
     
@@ -186,6 +196,7 @@ export class SimpleDatabase {
   public Show: SimpleDBTable<any>;
   public Venue: SimpleDBTable<any>;
   public Segment: SimpleDBTable<any>;
+  public Appearance: SimpleDBTable<any>;
   public MatchResult: SimpleDBTable<any>;
   public Storyline: SimpleDBTable<any>;
   public StorylineSegment: SimpleDBTable<any>;
@@ -205,6 +216,7 @@ export class SimpleDatabase {
     this.Show = new SimpleDBTable('Show');
     this.Venue = new SimpleDBTable('Venue');
     this.Segment = new SimpleDBTable('Segment');
+    this.Appearance = new SimpleDBTable('Appearance');
     this.MatchResult = new SimpleDBTable('MatchResult');
     this.Storyline = new SimpleDBTable('Storyline');
     this.StorylineSegment = new SimpleDBTable('StorylineSegment');

@@ -278,7 +278,11 @@ export function createWrestlerTools(db: FedSimDatabase) {
       },
       handler: async (args: any) => {
         const result = await createWrestler(args);
-        return result.success ? result.data : `Error: ${result.error}`;
+        if (result.success && result.data) {
+          const wrestler = result.data;
+          return `Wrestler created successfully!\n\n**${wrestler.name}** (ID: ${wrestler.id})\n\n• **Alignment:** ${wrestler.alignment}\n• **Billed From:** ${wrestler.billedFrom}\n• **Height:** ${wrestler.height} cm (${Math.floor(wrestler.height / 30.48)}'${Math.round((wrestler.height % 30.48) / 2.54)}")\n• **Weight:** ${wrestler.weight} lbs\n• **Overall Rating:** ${wrestler.points}/100\n• **Charisma:** ${wrestler.charisma}/100 (${wrestler.charisma >= 90 ? 'excellent crowd connection' : wrestler.charisma >= 70 ? 'good crowd connection' : wrestler.charisma >= 50 ? 'average crowd connection' : 'poor crowd connection'})\n• **Finishing Move:** ${wrestler.finisher}\n• **Contract:** ${wrestler.contractType}, expires ${wrestler.contractExpires.toLocaleDateString()}\n• **Status:** ${wrestler.status === 'SIGNED' ? 'Active and signed' : wrestler.status}`;
+        }
+        return `Error: ${result.error}`;
       },
     }],
     ['boost_wrestler', {
@@ -293,7 +297,11 @@ export function createWrestlerTools(db: FedSimDatabase) {
       },
       handler: async (args: any) => {
         const result = await boostWrestler(args.id);
-        return result.success ? result.data : `Error: ${result.error}`;
+        if (result.success && result.data) {
+          const wrestler = result.data;
+          return `Wrestler boosted successfully!\n\n**${wrestler.name}** stats improved:\n• **Morale:** ${wrestler.morale}/100\n• **Popularity:** ${wrestler.popularity}/100\n• **Charisma:** ${wrestler.charisma}/100\n• **Stamina:** ${wrestler.stamina}/100\n• **Damage:** ${wrestler.damage}/100\n• **Points:** ${wrestler.points}/100`;
+        }
+        return `Error: ${result.error}`;
       },
     }],
     ['penalize_wrestler', {
@@ -308,7 +316,11 @@ export function createWrestlerTools(db: FedSimDatabase) {
       },
       handler: async (args: any) => {
         const result = await penalizeWrestler(args.id);
-        return result.success ? result.data : `Error: ${result.error}`;
+        if (result.success && result.data) {
+          const wrestler = result.data;
+          return `Wrestler penalized!\n\n**${wrestler.name}** stats reduced:\n• **Morale:** ${wrestler.morale}/100\n• **Popularity:** ${wrestler.popularity}/100\n• **Damage:** ${wrestler.damage}/100\n• **Stamina:** ${wrestler.stamina}/100\n• **Points:** ${wrestler.points}/100`;
+        }
+        return `Error: ${result.error}`;
       },
     }],
     ['search_wrestlers', {

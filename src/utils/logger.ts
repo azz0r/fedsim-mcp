@@ -41,6 +41,11 @@ export class Logger {
   }
 
   private printLog(entry: LogEntry) {
+    // Skip logging in MCP mode (stdio/non-TTY environment)
+    if (!process.stdout.isTTY && process.env.NODE_ENV !== 'development') {
+      return;
+    }
+    
     const timestamp = entry.timestamp.toISOString().slice(11, 23);
     const levelIcon = this.getLevelIcon(entry.level);
     const levelColor = this.getLevelColor(entry.level);

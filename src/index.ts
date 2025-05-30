@@ -13,7 +13,7 @@ import chalk from 'chalk';
 const server = new Server(
   {
     name: 'fedsimulator-mcp',
-    version: '1.0.7',
+    version: '1.0.13',
   },
   {
     capabilities: {
@@ -25,18 +25,27 @@ const server = new Server(
 let db: any;
 let allTools: Map<string, any> = new Map();
 
-async function initializeServer() {
-  // Import simple DB and tool creators
-  const { db: database } = await import('./database/simple-db.js');
-  const { createWrestlerTools } = await import('./tools/wrestler-tools.js');
-  const { createBrandTools } = await import('./tools/brand-tools.js');
-  const { createProductionTools } = await import('./tools/production-tools.js');
-  const { createGeneralTools } = await import('./tools/general-tools.js');
+// Check if running as MCP server (detect stdio mode)
+const isMcpMode = !process.stdout.isTTY || 
+  process.argv[1]?.includes('npx') || 
+  process.argv[1]?.includes('fedsimulator-mcp');
 
-  console.error(chalk.blue('🏟️  Initializing Fed Simulator MCP Server...'));
+async function initializeServer() {
+  if (!isMcpMode) {
+    console.error(chalk.blue('🏟️  Initializing Fed Simulator MCP Server...'));
+  }
   try {
+    // Import simple DB and tool creators
+    const { db: database } = await import('./database/simple-db.js');
+    const { createWrestlerTools } = await import('./tools/wrestler-tools.js');
+    const { createBrandTools } = await import('./tools/brand-tools.js');
+    const { createProductionTools } = await import('./tools/production-tools.js');
+    const { createGeneralTools } = await import('./tools/general-tools.js');
+
     db = database;
-    console.error(chalk.green('✅ Database initialized'));
+    if (!isMcpMode) {
+      console.error(chalk.green('✅ Database initialized'));
+    }
     const wrestlerTools = createWrestlerTools(db);
     const brandTools = createBrandTools(db);
     const productionTools = createProductionTools(db);
@@ -45,13 +54,16 @@ async function initializeServer() {
     for (const [key, value] of brandTools) allTools.set(key, value);
     for (const [key, value] of productionTools) allTools.set(key, value);
     for (const [key, value] of generalTools) allTools.set(key, value);
-    console.error(chalk.green(`✅ Loaded ${allTools.size} tools`));
-    console.error(chalk.blue('🚀 Fed Simulator MCP Server ready!'));
-    console.error(chalk.yellow('\n📋 Available tools:'));
-    for (const [name, tool] of allTools) {
-      console.error(chalk.gray(`  • ${name}: ${tool.description}`));
+    
+    if (!isMcpMode) {
+      console.error(chalk.green(`✅ Loaded ${allTools.size} tools`));
+      console.error(chalk.blue('🚀 Fed Simulator MCP Server ready!'));
+      console.error(chalk.yellow('\n📋 Available tools:'));
+      for (const [name, tool] of allTools) {
+        console.error(chalk.gray(`  • ${name}: ${tool.description}`));
+      }
+      console.error('');
     }
-    console.error('');
   } catch (error) {
     console.error(chalk.red('❌ Failed to initialize server:'), error);
     process.exit(1);
@@ -77,10 +89,14 @@ server.setRequestHandler(CallToolRequestSchema, async (request) => {
     );
   }
   try {
-    console.error(chalk.cyan(`🔧 Executing: ${name}`));
-    console.error(chalk.gray(`   Args: ${JSON.stringify(args, null, 2)}`));
+    if (!isMcpMode) {
+      console.error(chalk.cyan(`🔧 Executing: ${name}`));
+      console.error(chalk.gray(`   Args: ${JSON.stringify(args, null, 2)}`));
+    }
     const result = await tool.handler(args);
-    console.error(chalk.green(`✅ ${name} completed successfully`));
+    if (!isMcpMode) {
+      console.error(chalk.green(`✅ ${name} completed successfully`));
+    }
     return {
       content: [
         {
@@ -90,7 +106,9 @@ server.setRequestHandler(CallToolRequestSchema, async (request) => {
       ],
     };
   } catch (error) {
-    console.error(chalk.red(`❌ Error executing ${name}:`), error);
+    if (!isMcpMode) {
+      console.error(chalk.red(`❌ Error executing ${name}:`), error);
+    }
     throw new McpError(
       ErrorCode.InternalError,
       `Failed to execute ${name}: ${error instanceof Error ? error.message : String(error)}`
@@ -194,7 +212,9 @@ async function main() {
   await initializeServer();
   const transport = new StdioServerTransport();
   await server.connect(transport);
-  console.error(chalk.green('Fed Simulator MCP Server running on stdio'));
+  if (!isMcpMode) {
+    console.error(chalk.green('Fed Simulator MCP Server running on stdio'));
+  }
 }
 
 if (import.meta.url === `file://${process.argv[1]}`) {

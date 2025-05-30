@@ -124,6 +124,37 @@ class SimpleDBTable<T extends { _id?: string; id?: number; type: string }> {
     keysToDelete.forEach(key => this.storage.delete(key));
   }
 
+  toCollection() {
+    const self = this;
+    return {
+      offset(count: number) {
+        return {
+          async toArray(): Promise<T[]> {
+            const all = await self.toArray();
+            return all.slice(count);
+          }
+        };
+      },
+      sortBy(field: string) {
+        return {
+          async toArray(): Promise<T[]> {
+            const all = await self.toArray();
+            return all.sort((a, b) => {
+              const aVal = a[field as keyof T];
+              const bVal = b[field as keyof T];
+              if (aVal < bVal) return -1;
+              if (aVal > bVal) return 1;
+              return 0;
+            });
+          }
+        };
+      },
+      async toArray(): Promise<T[]> {
+        return self.toArray();
+      }
+    };
+  }
+
   async query(selector: any, options: any = {}): Promise<T[]> {
     let results = Array.from(this.storage.values()).filter(doc => doc.type === this.docType);
     
@@ -216,6 +247,70 @@ export class SimpleDatabase {
     }
     
     return backup;
+  }
+
+  async find(options: any): Promise<{ docs: any[] }> {
+    const { selector, sort, limit } = options;
+    let results: any[] = [];
+
+    // Get all documents and filter by selector
+    const allTables = [
+      this.Wrestler, this.Brand, this.Company, this.Production, 
+      this.Championship, this.Show, this.Venue, this.Segment,
+      this.MatchResult, this.Storyline, this.StorylineSegment, 
+      this.StorylineGoal, this.Reign, this.Rumble, this.Bet, 
+      this.Favourite, this.Notification
+    ];
+
+    for (const table of allTables) {
+      const tableData = await table.toArray();
+      results.push(...tableData);
+    }
+
+    // Apply selector filter
+    if (selector) {
+      results = results.filter(doc => {
+        return Object.keys(selector).every(key => {
+          const value = selector[key];
+          
+          if (key === 'brandIds' && value.$elemMatch !== undefined) {
+            // Handle $elemMatch for array fields
+            return Array.isArray(doc[key]) && doc[key].includes(value.$elemMatch);
+          }
+          
+          return doc[key] === value;
+        });
+      });
+    }
+
+    // Apply sorting
+    if (sort && Array.isArray(sort)) {
+      results.sort((a, b) => {
+        for (const sortField of sort) {
+          const fieldName = Object.keys(sortField)[0];
+          const direction = sortField[fieldName];
+          
+          const aVal = a[fieldName];
+          const bVal = b[fieldName];
+          
+          let comparison = 0;
+          if (aVal < bVal) comparison = -1;
+          else if (aVal > bVal) comparison = 1;
+          
+          if (direction === 'desc') comparison *= -1;
+          
+          if (comparison !== 0) return comparison;
+        }
+        return 0;
+      });
+    }
+
+    // Apply limit
+    if (limit) {
+      results = results.slice(0, limit);
+    }
+
+    return { docs: results };
   }
 }
 

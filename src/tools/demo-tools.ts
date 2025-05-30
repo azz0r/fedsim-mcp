@@ -52,7 +52,7 @@ export function createDemoTools(db: FedSimDatabase) {
         });
         
         if (result && typeof result === 'object' && 'id' in result) {
-          wrestlerIds.push(result.id);
+          wrestlerIds.push(result.id as number);
           logger.success('✅ create_wrestler called', {
             name: wrestler.name,
             points: wrestler.points,
@@ -78,7 +78,7 @@ export function createDemoTools(db: FedSimDatabase) {
         });
         
         if (result && typeof result === 'object' && 'id' in result) {
-          brandIds.push(result.id);
+          brandIds.push(result.id as number);
           logger.success('✅ create_brand called', {
             name: brand.name,
             balance: brand.balance
@@ -123,7 +123,7 @@ export function createDemoTools(db: FedSimDatabase) {
       });
       
       if (result && typeof result === 'object' && 'id' in result) {
-        productionId = result.id;
+        productionId = result.id as number;
         logger.success('✅ create_production called', {
           name: "RAW - Demo Show",
           id: productionId
@@ -145,12 +145,12 @@ export function createDemoTools(db: FedSimDatabase) {
       
       if (result && typeof result === 'object' && 'randomizedSegments' in result) {
         logger.success('✅ randomize_production called', {
-          segmentsCreated: result.randomizedSegments.length,
+          segmentsCreated: (result.randomizedSegments as any[]).length,
           production: "RAW - Demo Show"
         });
         
         // Log the matches created
-        for (const segment of result.randomizedSegments) {
+        for (const segment of (result.randomizedSegments as any[])) {
           logger.info('📺 Match booked', {
             match: segment.name,
             type: segment.type,
@@ -172,16 +172,16 @@ export function createDemoTools(db: FedSimDatabase) {
       
       if (result && typeof result === 'object' && 'results' in result) {
         logger.success('✅ simulate_production called', {
-          segments: result.results.segments,
-          averageRating: result.results.averageRating,
-          attendance: result.results.attendance.toLocaleString(),
-          revenue: `$${result.results.revenue.toLocaleString()}`,
-          profit: `$${result.results.profit.toLocaleString()}`
+          segments: (result.results as any).segments,
+          averageRating: (result.results as any).averageRating,
+          attendance: (result.results as any).attendance.toLocaleString(),
+          revenue: `$${(result.results as any).revenue.toLocaleString()}`,
+          profit: `$${(result.results as any).profit.toLocaleString()}`
         });
         
         // Log individual match results
-        if (result.results.segmentResults) {
-          for (const segmentResult of result.results.segmentResults) {
+        if ((result.results as any).segmentResults) {
+          for (const segmentResult of (result.results as any).segmentResults) {
             logger.info('🏆 Match result', {
               match: segmentResult.segment,
               rating: segmentResult.rating,
@@ -203,10 +203,10 @@ export function createDemoTools(db: FedSimDatabase) {
       
       if (result && typeof result === 'object') {
         logger.success('✅ get_production_report called', {
-          showName: result.production?.name,
-          totalSegments: result.segments?.length || 0,
-          totalProfit: `$${result.financial?.profit?.toLocaleString() || 0}`,
-          attendance: result.audience?.attendance?.toLocaleString() || 0
+          showName: (result as any).production?.name,
+          totalSegments: (result as any).segments?.length || 0,
+          totalProfit: `$${(result as any).financial?.profit?.toLocaleString() || 0}`,
+          attendance: (result as any).audience?.attendance?.toLocaleString() || 0
         });
       }
     }
@@ -240,10 +240,10 @@ export function createDemoTools(db: FedSimDatabase) {
       
       if (result && typeof result === 'object' && 'financials' in result) {
         logger.success('✅ get_brand_financials called', {
-          brand: result.brand?.name,
-          currentBalance: `$${result.financials.currentBalance?.toLocaleString()}`,
-          recentShows: result.financials.recentShows,
-          totalRevenue: `$${result.financials.totalRevenue?.toLocaleString()}`
+          brand: (result as any).brand?.name,
+          currentBalance: `$${(result.financials as any).currentBalance?.toLocaleString()}`,
+          recentShows: (result.financials as any).recentShows,
+          totalRevenue: `$${(result.financials as any).totalRevenue?.toLocaleString()}`
         });
       }
     }

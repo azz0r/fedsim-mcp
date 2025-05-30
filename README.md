@@ -233,7 +233,7 @@ npm test
 ## Architecture
 
 - **TypeScript**: Full type safety and modern JS features
-- **Dexie + fake-indexeddb**: Browser IndexedDB compatibility in Node.js
+- **PouchDB**: NoSQL document database with memory adapter for Node.js
 - **MCP SDK**: Standard Model Context Protocol implementation
 - **Chalk**: Rich console output with colors
 - **Action Wrappers**: Automatic logging and error handling for all operations

@@ -1,7 +1,9 @@
 import PouchDB from 'pouchdb';
 import PouchDBFind from 'pouchdb-find';
+import PouchDBMemoryAdapter from 'pouchdb-adapter-memory';
 import type { PouchDBSelector, PouchDBFindResult, PouchDBFindOptions, DatabaseError } from '../types/database.js';
 PouchDB.plugin(PouchDBFind);
+PouchDB.plugin(PouchDBMemoryAdapter);
 
 export interface Wrestler {
   _id?: string;
@@ -272,7 +274,7 @@ export class FedSimDatabase {
   public Notification: PouchDBTable<any>;
 
   constructor() {
-    this.db = new PouchDB('fedsim-database');
+    this.db = new PouchDB('fedsim-database', { adapter: 'memory' });
     this.Wrestler = new PouchDBTable(this.db, 'Wrestler');
     this.Brand = new PouchDBTable(this.db, 'Brand');
     this.Company = new PouchDBTable(this.db, 'Company');

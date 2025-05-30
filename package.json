@@ -1,6 +1,6 @@
 {
   "name": "fedsimulator-mcp",
-  "version": "1.0.18",
+  "version": "1.0.19",
   "private": false,
   "description": "MCP server for Fed Simulator X database actions",
   "main": "dist/index.js",
